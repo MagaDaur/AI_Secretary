@@ -20,6 +20,9 @@ logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
+import os
+os.environ['HF_HOME'] = '/models'
+
 HF_TOKEN = getenv('HF_TOKEN')
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"

@@ -63,7 +63,7 @@ services:
               count: 1
               capabilities: [ gpu ]
     volumes:
-      - asr-server-data:/.cached
+      - asr-server-data:/models
     restart: unless-stopped
 
   llm-server:

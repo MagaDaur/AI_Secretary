@@ -50,6 +50,7 @@ asr_caption = '''
 def asr_callback(ch, method, properties, body):
     data = json.loads(body)
 
+    os.makedirs(f"/temp/{data['chat_id']}/", exist_ok=True)
     with open(f"./temp/{data['chat_id']}/speakers.srt", 'wb') as srt_file:
         srt_file.write(base64.b64decode(data['srt_file']))
 

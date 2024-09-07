@@ -105,6 +105,7 @@ channel.queue_declare(queue='final_srt_to_llm')
 
 
 async def start(update: Update, ctx):
+    CreateDirectory('./temp/', exist_ok=True)
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
 
     metadata = BASE_METADATA.copy()
@@ -350,7 +351,6 @@ if __name__ == "__main__":
             ],
         },
         fallbacks=[CommandHandler("start", start)],
-        per_message=True,
     )
 
     application.add_handler(conv_handler)
