@@ -16,13 +16,14 @@ from telegram.ext import (
     MessageHandler,
     filters
 )
+
 import json
 import os
 from dotenv import load_dotenv
 import asyncio
 import base64
 
-import srt_preview
+import fonts.srt_preview as srt_preview
 
 import logging
 logging.basicConfig(level=logging.INFO)
