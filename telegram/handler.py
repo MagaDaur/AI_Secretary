@@ -4,6 +4,9 @@ import json
 import os
 from dotenv import load_dotenv
 import asyncio
+import base64
+
+import srt_preview
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -15,20 +18,27 @@ API_KEY = os.getenv('API_KEY')
 bot = telegram.Bot(API_KEY)
 
 credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials))
+#connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials))
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 
 channel = connection.channel()
 
-channel.queue_declare(queue='telegram_text_upload')
+channel.queue_declare(queue='asr_line')
+channel.queue_declare(queue='llm_line')
 
-def llm_callback(channel, method, properties, body):
-    global bot
-    logging.info("LLM Callback worked!")
+def asr_callback(ch, method, properties, body):
+    data = json.loads(body)
 
+    with open(f'{data['chat_id']}.srt', 'wb') as srt_file:
+        srt_file.write(base64.b64decode(data['srt_file']))
+
+        pdf_file_path = srt_preview.create_pdf(data['chat_id'])
+
+        asyncio.run(bot.send_document(data['chat_id'], pdf_file_path))
+
+def llm_callback(ch, method, properties, body):
     data = json.loads(body)
     
-    # Сомнительно, но окэй
-    asyncio.run(bot.send_message(data['chat_id'], '\n'.join(data['transcribed_text'])))
 
-channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
+channel.basic_consume(queue='asr_line', auto_ack=True, on_message_callback=asr_callback)
 channel.start_consuming()

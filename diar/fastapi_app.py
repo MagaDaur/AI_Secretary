@@ -241,11 +241,11 @@ def process_audio(ch, method, properties, body):
 
     data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers, "srt_file": get_file_bytes_as_b64(output_srt)}
 
-    channel.basic_publish('', 'telegram_text_upload', json.dumps(data))
+    channel.basic_publish('', 'asr_line', json.dumps(data))
 
 channel.queue_declare(queue='auto_analyze')
 channel.queue_declare(queue='manual_analyze')
-channel.queue_declare(queue='telegram_text_upload')
+channel.queue_declare(queue='asr_line')
 
 channel.basic_consume(queue='auto_analyze', auto_ack=True, on_message_callback=verify_audio)
 channel.basic_consume(queue='manual_analyze', auto_ack=True, on_message_callback=process_audio)

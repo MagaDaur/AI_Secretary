@@ -44,13 +44,13 @@ load_dotenv()
 API_KEY = getenv('API_KEY')
 
 credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
-
+#connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
 channel = connection.channel()
 channel.queue_declare(queue='audio_upload')
 
-SET_PASSWORD, SET_TYPE, SET_MAIN_AUDIO, SET_SPEAKERS, SET_SPEAKERS_NAMES = range(5)
+SET_PASSWORD, SET_TYPE, SET_MAIN_AUDIO, SET_SPEAKERS, SET_SPEAKERS_NAMES, WAIT_REPLY = range(6)
 
 def get_directory_filenames(directory_path: str):
     filenames = []
@@ -77,11 +77,6 @@ def get_metadata(file_path: str):
 def set_metadata(file_path: str, value: dict):
     with open(file_path, 'w') as file:
         json.dump(value, file)
-
-#Чел пишет
-#SPEAKER0: FIO
-
-# PASSWORD -> TYPE -> SPEAKERS_AUDIO? -> MAIN_AUDIO -> ...
 
 async def start(update : Update, ctx):
     keyboard = [
@@ -175,16 +170,19 @@ async def get_audio(update : Update, ctx):
         'speakers': get_speaker_files_b64(f'./temp/{update.message.chat_id}/')
     }
 
-    #channel.basic_publish('', 'audio_upload', json.dumps(json_data))
+    metadata_path = f'./temp/{update.message.chat_id}.json'
+    metadata = get_metadata(metadata_path)
+
+    if metadata['type'] == 1:
+        channel.basic_publish('', 'auto_analyze', json.dumps(json_data))
+    elif metadata['type'] == 2:
+        channel.basic_publish('', 'manual_analyze', json.dumps(json_data))
 
     RemoveDirectory(f'./temp/{update.message.chat_id}/', ignore_errors=True)
 
     await update.message.reply_text('Идет обработка вашего запроса, ожидайте...')
 
-    metadata_path = f'./temp/{update.message.chat_id}.json'
-    metadata = get_metadata(metadata_path)
-
-    return ConversationHandler.END
+    return WAIT_REPLY
 
 async def get_speakers_names(update : Update, ctx):
     metadata_path = f'./temp/{update.message.chat_id}.json'
@@ -219,8 +217,8 @@ def main():
                 MessageHandler(filters.ATTACHMENT | filters.VOICE, get_audio),
             ],
             SET_SPEAKERS_NAMES: [
-                MessageHandler(filters.Regex('SPEAKER_(\d+)\s*:\s*(.+)'), get_speakers_names)
-            ]
+                MessageHandler(filters.Regex('SPEAKER(\d+)\s*:\s*(.+)'), get_speakers_names)
+            ],
         },
         fallbacks=[CommandHandler("start", start)],
     )
