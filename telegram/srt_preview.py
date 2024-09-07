@@ -12,7 +12,7 @@ def create_pdf(filename: str):
 
     line_height = pdf.font_size * 2.5
 
-    with open(f'{filename}.srt', 'r', encoding="utf-8") as input_file:
+    with open(f'./temp/{filename}/speaker.srt', 'r', encoding="utf-8") as input_file:
         parser = subtitle_parser.SrtParser(input_file)
         parser.parse()
 
