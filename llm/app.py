@@ -31,6 +31,7 @@ channel.queue_declare(queue='transcribed_text_upload')
 
 
 def callback(ch: BlockingChannel, method, properties, body):
+    logging.info("GPT GENERATION")
     data = json.loads(body)
     answers = []
 
@@ -71,7 +72,7 @@ def callback(ch: BlockingChannel, method, properties, body):
         'file_name': data['file_name'],
         'transcribed_text': answers
     }
-
+    logging.info(answers)
     channel.basic_publish('', 'telegram_text_upload', json.dumps(body))
 
 
