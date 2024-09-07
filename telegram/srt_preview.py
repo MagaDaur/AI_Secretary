@@ -1,8 +1,10 @@
 from fpdf import FPDF
 import subtitle_parser
 import re
+import os
+import pathlib
 
-def create_pdf(filename: str):
+def create_pdf(file_path: str):
     pdf=FPDF()
     pdf.add_page()
 
@@ -12,7 +14,7 @@ def create_pdf(filename: str):
 
     line_height = pdf.font_size * 2.5
 
-    with open(f'./temp/{filename}/speaker.srt', 'r', encoding="utf-8") as input_file:
+    with open(file_path, 'r', encoding="utf-8") as input_file:
         parser = subtitle_parser.SrtParser(input_file)
         parser.parse()
 
@@ -30,8 +32,9 @@ def create_pdf(filename: str):
         else:
             pdf.set_font("DejaVu", "", 12)
             pdf.multi_cell(0, 10, right_part)
-    
 
-    pdf.output(f'{filename}.pdf')
+    pdf_filepath = file_path.replace('.srt', '.pdf')
 
-    return f'{filename}.pdf'
+    pdf.output(pdf_filepath)
+
+    return pdf_filepath
