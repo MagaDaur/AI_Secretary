@@ -1,0 +1,80 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: rabbitmq-server
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  telegram-bot-api:
+    image: aiogram/telegram-bot-api:latest
+    env_file:
+      - .env
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - "8081:8081"
+
+  telegram-app:
+    container_name: telegram-app
+    build:
+      context: ./telegram
+      dockerfile: Dockerfile-app
+    env_file:
+      - .env
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - "8082:8082"
+    restart: unless-stopped
+
+  telegram-handler:
+    container_name: telegram-handler
+    build:
+      context: ./telegram
+      dockerfile: Dockerfile-handler
+    env_file:
+      - .env
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - "8083:8083"
+    restart: unless-stopped
+
+  asr-server:
+    container_name: asr-server
+    build:
+      context: ./asr_server
+      dockerfile: Dockerfile
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    volumes:
+      - asr-server-data:/var/lib/asr-server
+    restart: unless-stopped
+
+  llm-server:
+    container_name: llm-server
+    build:
+      context: ./llm
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: unless-stopped
+
+
+volumes:
+  telegram-bot-api-data:
+    driver: local
+  asr-server-data:
+  rabbitmq_data:

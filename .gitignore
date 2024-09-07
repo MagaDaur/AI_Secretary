@@ -1,0 +1,15 @@
+# Folders
+uploaded_files/
+__pycache__/
+temp/
+venv/
+.env
+
+# Audio extentions
+*.mp3
+*.ogg
+*.wav
+*.oga
+
+# File extentions 
+*.pyc

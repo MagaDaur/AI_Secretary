@@ -1,0 +1,5 @@
+pika
+langchain-core
+langchain
+requests
+python-dotenv
