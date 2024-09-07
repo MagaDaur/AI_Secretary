@@ -30,6 +30,23 @@ logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
+def get_metadata(file_path: str):
+    with open(file_path, 'r') as file:
+        return json.load(file)
+
+
+def set_metadata(file_path: str, value: dict):
+    with open(file_path, 'w') as file:
+        json.dump(value, file)
+
+
+def get_chat_metadata(chat_id):
+    return get_metadata(f'./temp/{chat_id}/metadata.json')
+
+
+def set_chat_metadata(chat_id, value):
+    set_metadata(f'./temp/{chat_id}/metadata.json', value)
+
 API_KEY = os.getenv('API_KEY')
 
 bot = telegram.Bot(API_KEY)
@@ -51,7 +68,11 @@ asr_caption = '''
 def asr_callback(ch, method, properties, body):
     data = json.loads(body)
 
-    os.makedirs(f"/temp/{data['chat_id']}/", exist_ok=True)
+    metadata = get_chat_metadata(data['chat_id'])
+    metadata['num_speakers'] = data['unique_speakers']
+    metadata['cur_speaker'] = 0
+    set_chat_metadata(data['chat_id'], metadata)
+
     with open(f"./temp/{data['chat_id']}/speakers.srt", 'wb') as srt_file:
         srt_file.write(base64.b64decode(data['srt_file']))
 
@@ -62,7 +83,7 @@ def asr_callback(ch, method, properties, body):
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
     
-    #tbd
+    asyncio.run(bot.send_message(data['chat_id'], 'А нету пдфа('))
 
 channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
 channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)

@@ -266,37 +266,35 @@ async def get_main_audio(update: Update, ctx):
 
     return WAIT_REPLY
 
-
-speakers_names_instruction = '''
-Введите имена спикеров в формате "SPEAKER_0:Иван И.И."
-После нажмите на подсказку "Завершить ввод".
-'''
-
-
 async def accept_request(update: Update, ctx):
-    await update.message.reply_text(speakers_names_instruction,
-                                    reply_markup=ReplyKeyboardMarkup([['Завершить ввод']], one_time_keyboard=True,
-                                                                     resize_keyboard=True))
-
+    await update.message.reply_text('Введите имя для SPEAKER_00.')
     return SPEAKER_NAMES
 
 
 async def get_speakers_names(update: Update, ctx):
-    speaker_map = update.message.text.strip().split(':')
+    metadata = get_chat_metadata(update.message.chat_id)
+
+    cur_speaker = metadata['cur_speaker']
+
+    speaker_old = 'SPEAKER_' + str(cur_speaker).zfill(2)
+    speaker_new = update.message.text
 
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
         filedata = srt_file.read()
 
-    filedata.replace(speaker_map[0], speaker_map[1])
+    filedata.replace(speaker_old, speaker_new)
 
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'w') as srt_file:
         srt_file.write(filedata)
 
-    return SPEAKER_NAMES
+    cur_speaker += 1
+    metadata['cur_speaker'] += cur_speaker
+    set_chat_metadata(update.message.chat_id, metadata)
 
+    if cur_speaker < metadata['num_speakers']:
+        await update.message.reply_text(f'Введите имя для SPEAKER_' + str(cur_speaker).zfill(2))
+        return SPEAKER_NAMES
 
-async def get_speakers_names_done(update: Update, ctx):
-    metadata = get_chat_metadata(update.message.chat_id)
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
         request_body = {
             'chat_id': update.message.chat_id,
@@ -307,11 +305,6 @@ async def get_speakers_names_done(update: Update, ctx):
         channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
 
     return ConversationHandler.END
-
-
-async def end(update: Update, ctx):
-    pass
-
 
 if __name__ == "__main__":
     application = ApplicationBuilder()
@@ -346,8 +339,7 @@ if __name__ == "__main__":
                 MessageHandler(filters.Regex('^Продолжить$'), accept_request)
             ],
             SPEAKER_NAMES: [
-                MessageHandler(filters.Regex('^SPEAKER_[\d]{1,2}\s*:\s*.+$'), get_speakers_names),
-                MessageHandler(filters.Regex('^Завершить ввод$'), get_speakers_names_done)
+                MessageHandler(filters.TEXT, get_speakers_names),
             ],
         },
         fallbacks=[CommandHandler("start", start)],
