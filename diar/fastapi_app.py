@@ -207,7 +207,7 @@ def verify_audio(ch, method, properties, body):
 
     data = {'chat_id': input_data['chat_id'],"unique_speakers": unique_speakers, "srt_file": get_file_bytes_as_b64(output_srt)}
 
-    channel.basic_publish('', 'telegram_text_upload', json.dumps(data))
+    channel.basic_publish('', 'asr_to_llm', json.dumps(data))
 
 
 def process_audio(ch, method, properties, body):

@@ -48,7 +48,8 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-se
 #connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
 channel = connection.channel()
-channel.queue_declare(queue='audio_upload')
+channel.queue_declare(queue='auto_analyze')
+channel.queue_declare(queue='manual_analyze')
 
 SET_PASSWORD, SET_TYPE, SET_MAIN_AUDIO, SET_SPEAKERS, SET_SPEAKERS_NAMES, WAIT_REPLY = range(6)
 

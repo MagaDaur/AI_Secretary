@@ -23,8 +23,8 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-se
 
 channel = connection.channel()
 
-channel.queue_declare(queue='asr_line')
-channel.queue_declare(queue='llm_line')
+channel.queue_declare(queue='asr_to_handler')
+channel.queue_declare(queue='llm_to_handler')
 
 def asr_callback(ch, method, properties, body):
     data = json.loads(body)
