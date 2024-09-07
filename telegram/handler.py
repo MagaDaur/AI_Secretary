@@ -18,8 +18,8 @@ API_KEY = os.getenv('API_KEY')
 bot = telegram.Bot(API_KEY)
 
 credentials = pika.PlainCredentials('user', 'password')
-#connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials))
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials))
+#connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
 
 channel = connection.channel()
 

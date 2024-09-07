@@ -44,8 +44,8 @@ load_dotenv()
 API_KEY = getenv('API_KEY')
 
 credentials = pika.PlainCredentials('user', 'password')
-#connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
+#connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
 channel = connection.channel()
 channel.queue_declare(queue='audio_upload')
@@ -195,8 +195,8 @@ async def get_speakers_names(update : Update, ctx):
 def main():
     application = ApplicationBuilder()
     application.token(API_KEY)
-    #application.base_url('http://sfo_prep-telegram-bot-api-1:8081/bot')
-    application.base_url('http://localhost:8081/bot')
+    application.base_url('http://sfo_prep-telegram-bot-api-1:8081/bot')
+    #application.base_url('http://localhost:8081/bot')
 
     application = application.build()
 
