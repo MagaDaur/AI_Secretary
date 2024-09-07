@@ -33,26 +33,6 @@ import pika
 import base64
 import json
 
-BASE_METADATA = {
-    'names': [],
-    'password': False,
-    'type': 1,
-}
-
-load_dotenv()
-
-API_KEY = getenv('API_KEY')
-
-credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
-#connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
-
-channel = connection.channel()
-channel.queue_declare(queue='auto_analyze')
-channel.queue_declare(queue='manual_analyze')
-
-SET_PASSWORD, SET_TYPE, SET_MAIN_AUDIO, SET_SPEAKERS, SET_SPEAKERS_NAMES, WAIT_REPLY = range(6)
-
 def get_directory_filenames(directory_path: str):
     filenames = []
     for filename in listdir(directory_path):
@@ -70,7 +50,6 @@ def get_speaker_files_b64(directory_path: str):
             'filename': filename,
             'buffer': get_file_bytes_as_b64(directory_path + filename)
         })
-
     return data
 def get_metadata(file_path: str):
     with open(file_path, 'r') as file:
@@ -78,158 +57,249 @@ def get_metadata(file_path: str):
 def set_metadata(file_path: str, value: dict):
     with open(file_path, 'w') as file:
         json.dump(value, file)
+def get_chat_metadata(chat_id):
+    return get_metadata(f'./temp/{chat_id}/metadata.json')
+def set_chat_metadata(chat_id, value):
+    set_metadata(f'./temp/{chat_id}/metadata.json', value)
 
-async def start(update : Update, ctx):
-    keyboard = [
-        [
-            InlineKeyboardButton("Да", callback_data='1'),
-            InlineKeyboardButton("Нет", callback_data='2'),
-        ]
-    ]
+load_dotenv()
+
+BASE_METADATA = {
+    'names': [],
+    'speakers': [],
+}
+
+API_KEY = getenv('API_KEY')
+
+START = 0
+PASSWORD = 1
+TYPE = 2
+SPEAKERS = 3
+MAIN_AUDIO = 4
+WAIT_REPLY = 5
+SPEAKER_NAMES = 6
+
+credentials = pika.PlainCredentials('user', 'password')
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
+# connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
+
+channel = connection.channel()
+channel.queue_declare(queue='auto_analyze')
+channel.queue_declare(queue='manual_analyze')
+
+async def start(update: Update, ctx):
 
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
-    set_metadata(f'./temp/{update.message.chat_id}.json', BASE_METADATA)
 
-    await update.message.reply_text('Привет, нужен ли пароль?', reply_markup=InlineKeyboardMarkup(keyboard))
-    
-    return SET_PASSWORD
+    metadata = BASE_METADATA.copy()
+    metadata['chat_id'] = update.message.chat_id
+    set_chat_metadata(update.message.chat_id, metadata)
 
-async def set_password(update : Update, ctx):
+    keyboard = [['Запуск']]
+    await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?', reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
+
+    return START
+
+async def ask_password(update: Update, ctx):
+    keydoard = [
+        [
+            InlineKeyboardButton('Да', callback_data='1'),
+            InlineKeyboardButton('Нет', callback_data='2'),
+        ]
+    ]
+    await update.message.reply_text('Желаете ли установить пароль на итоговый отчет?', reply_markup=InlineKeyboardMarkup(keydoard))
+
+    return PASSWORD
+
+async def wait_for_password(update: Update, ctx):
     query = update.callback_query
     await query.answer()
 
-    metadata_path = f'./temp/{query.message.chat.id}.json'
+    await query.edit_message_text('Введите желаемый пароль...')
 
-    metadata = get_metadata(metadata_path)
-    metadata['password'] = True if query.data == '1' else False
-    set_metadata(metadata_path, metadata)
+    return PASSWORD
+
+async def skip_password(update: Update, ctx):
+    query = update.callback_query
+    await query.answer()
 
     keyboard = [
         [
-            InlineKeyboardButton("Авто", callback_data='1'),
-            InlineKeyboardButton("Ручной", callback_data='2'),
+            InlineKeyboardButton('Авто', callback_data='1'),
+            InlineKeyboardButton('Ручной', callback_data='2')
         ]
     ]
+    await query.edit_message_text('Хорошо. Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
 
-    await query.edit_message_text('Теперь выбери режим анализа', reply_markup=InlineKeyboardMarkup(keyboard))
+    return TYPE
 
-    return SET_TYPE
+async def get_password(update: Update, ctx):
+    metadata = get_chat_metadata(update.message.chat_id)
+    metadata['password'] = update.message.text
+    set_chat_metadata(update.message.chat_id, metadata)
 
-async def set_type(update : Update, ctx):
+    await update.message.chat.delete_message(update.message.message_id)
+
+    await update.message.reply_text(f'Отлично\! Ваш пароль: ||{update.message.text}||', parse_mode='MarkdownV2')
+
+    keyboard = [
+        [
+            InlineKeyboardButton('Авто', callback_data='1'),
+            InlineKeyboardButton('Ручной', callback_data='2')
+        ]
+    ]
+    await update.message.reply_text('Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
+
+    return TYPE
+
+auto_instruction = '''
+В автоматическом режиме вам необходимо:
+1. Отправить примеры голосов спикеров.
+    !!ВАЖНО!! - Названия аудио-файлов будут считаться именами спикеров.
+2. После загрузки всех аудио-файлов нажать на подсказку "Сохранить выбор".
+3. Далее следовать инструкциям.
+'''
+manual_instruction = '''
+В ручном режиме вам необходимо:
+1. Отправить аудио-файл который будет проанализован.
+2. После обработки, вам придет предварительный отчет, где имена спикеров будут иметь вид "SPEAKER_0".
+3. Вручную ввести имена спикеров.
+4. Далее следовать инструкциям.
+'''
+
+async def get_type(update: Update, ctx):
     query = update.callback_query
     await query.answer()
 
-    metadata_path = f'./temp/{query.message.chat.id}.json'
-    metadata = get_metadata(metadata_path)
+    metadata = get_chat_metadata(query.message.chat.id)
     metadata['type'] = int(query.data)
-    set_metadata(metadata_path, metadata)
+    set_chat_metadata(query.message.chat.id, metadata)
+
+    await query.delete_message()
 
     if query.data == '1':
-        await query.delete_message()
+        await query.message.chat.send_message(auto_instruction, reply_markup=ReplyKeyboardMarkup([['Сохранить выбор']], one_time_keyboard=True, resize_keyboard=True))
+        return SPEAKERS
 
-        keyboard = [[InlineKeyboardButton('Отправить')]]
-        await query.message.chat.send_message('Кидай аудио спикеров (названия файлов ФИО)', reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True))
-        
-        return SET_SPEAKERS
-
-    await query.edit_message_text('Кидай аудио для аналитики')
-    return SET_MAIN_AUDIO
+    await query.message.chat.send_message(manual_instruction)
+    return MAIN_AUDIO
     
-async def get_speakers(update : Update, ctx):
+
+async def get_speakers(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
+    print(file_data)
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
-        return SET_SPEAKERS
+        return SPEAKERS
     
-    file = await file_data.get_file()
-    await file.download_to_drive(f'./temp/{update.message.chat_id}/{file_data.file_name}')
-    
-    return SET_SPEAKERS
-
-async def speakers_done(update : Update, ctx):
-    await update.message.reply_text(
-        'Теперь загрузите аудио-файл на обработку...',
-        reply_markup=ReplyKeyboardRemove()
-        )
-    return SET_MAIN_AUDIO
-
-async def get_audio(update : Update, ctx):
-    file_data = update.message.document or update.message.audio or update.message.voice
-    if file_data is None:
-        await update.message.reply_text('Неправильный формат файла!')
-        return SET_MAIN_AUDIO
-
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
-    json_data = {
-        'chat_id': update.message.chat_id,
-        'audio': {
-            'filename': file_data.file_name,
-            'buffer': base64.b64encode(file_bytearray).decode(),
-        },
-        'speakers': get_speaker_files_b64(f'./temp/{update.message.chat_id}/')
+    metadata = get_chat_metadata(update.message.chat_id)
+    metadata['speakers'].append({
+        'filename': file_data.file_name,
+        'buffer': base64.b64encode(file_bytearray).decode(),
+    })
+    set_chat_metadata(update.message.chat_id, metadata)
+
+    return SPEAKERS
+
+async def get_speakers_done(update: Update, ctx):
+    await update.message.reply_text('Примеры голосов спикеров сохранены!')
+    await update.message.reply_text('Теперь отправьте аудио-файл для обработки...')
+    return MAIN_AUDIO
+
+async def get_main_audio(update: Update, ctx):
+    file_data = update.message.document or update.message.audio or update.message.voice
+    if file_data is None:
+        await update.message.reply_text('Неправильный формат файла!')
+        return MAIN_AUDIO
+    
+    file = await file_data.get_file()
+    file_bytearray = await file.download_as_bytearray()
+
+    metadata = get_chat_metadata(update.message.chat_id)
+    metadata['audio'] = {
+        'filename': file_data.file_name,
+        'buffer': base64.b64encode(file_bytearray).decode(),
     }
+    set_chat_metadata(update.message.chat_id, metadata)
 
-    metadata_path = f'./temp/{update.message.chat_id}.json'
-    metadata = get_metadata(metadata_path)
-
-    if metadata['type'] == 1:
-        channel.basic_publish('', 'auto_analyze', json.dumps(json_data))
-    elif metadata['type'] == 2:
-        channel.basic_publish('', 'manual_analyze', json.dumps(json_data))
-
-    RemoveDirectory(f'./temp/{update.message.chat_id}/', ignore_errors=True)
-
-    await update.message.reply_text('Идет обработка вашего запроса, ожидайте...')
+    #push metadata.json to ASR by rabbitmq
 
     return WAIT_REPLY
 
-async def get_speakers_names(update : Update, ctx):
-    metadata_path = f'./temp/{update.message.chat_id}.json'
-    metadata = get_metadata(metadata_path)
-    metadata['names'].append(update.message.text)
-    set_metadata(metadata_path, metadata)
+speakers_names_instruction = '''
+Введите имена спикеров в формате "SPEAKER_0:Иван И.И."
+После нажмите на подсказку "Завершить ввод".
+'''
 
-    return SET_SPEAKERS_NAMES
+async def accept_request(update: Update, ctx):
+    await update.message.reply_text(speakers_names_instruction, reply_markup=ReplyKeyboardMarkup([['Завершить ввод']], one_time_keyboard=True, resize_keyboard=True))
 
-def main():
-    application = ApplicationBuilder()
-    application.token(API_KEY)
-    application.base_url('http://telegram-bot-api:8081/bot')
-    #application.base_url('http://localhost:8081/bot')
+    return SPEAKER_NAMES
 
-    application = application.build()
+async def get_speakers_names(update: Update, ctx):
+    speaker_map = update.message.text.strip().split(':')
 
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
-        states={
-            SET_PASSWORD: [
-                CallbackQueryHandler(set_password),
-            ],
-            SET_TYPE: [
-                CallbackQueryHandler(set_type)
-            ],
-            SET_SPEAKERS: [
-                MessageHandler(filters.ATTACHMENT | filters.VOICE, get_speakers),
-                MessageHandler(filters.Regex('^Отправить$'), speakers_done)
-            ],
-            SET_MAIN_AUDIO: [
-                MessageHandler(filters.ATTACHMENT | filters.VOICE, get_audio),
-            ],
-            # WAIT_REPLY: [
+    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
+        filedata = srt_file.read()
 
-            # ],
-            SET_SPEAKERS_NAMES: [
-                MessageHandler(filters.Regex('SPEAKER(\d+)\s*:\s*(.+)'), get_speakers_names)
-            ],
-        },
-        fallbacks=[CommandHandler("start", start)],
-    )
+    filedata.replace(speaker_map[0], speaker_map[1])
 
-    application.add_handler(conv_handler)
-    application.run_polling()
+    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'w') as srt_file:
+        srt_file.write(filedata)
 
-if __name__ == '__main__':
-    main()
+    return SPEAKER_NAMES
 
+
+async def get_speakers_names_done(update: Update, ctx):
+    
+    #push speakers.srt to LLM by rabbitmq
+
+    return ConversationHandler.END
+
+async def end(update: Update, ctx):
+    pass
+
+application = ApplicationBuilder()
+application.token(API_KEY)
+application.base_url('http://telegram-bot-api-1:8081/bot')
+#application.base_url('http://localhost:8081/bot')
+
+application = application.build()
+
+conv_handler = ConversationHandler(
+    entry_points=[CommandHandler('start', start)],
+    states={
+        START: [
+            MessageHandler(filters.Regex('^Запуск$'), ask_password),
+        ],
+        PASSWORD: [
+            CallbackQueryHandler(wait_for_password, pattern='^1$'),
+            CallbackQueryHandler(skip_password, pattern='^2$'),
+            MessageHandler(filters.Language('en'), get_password),
+        ],
+        TYPE: [
+            CallbackQueryHandler(get_type),
+        ],
+        SPEAKERS: [
+            MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
+            MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
+        ],
+        MAIN_AUDIO: [
+            MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
+        ],
+        WAIT_REPLY: [
+            MessageHandler(filters.Regex('^Продолжить$'), accept_request)
+        ],
+        SPEAKER_NAMES: [
+            MessageHandler(filters.Regex('^SPEAKER_[\d]{1,2}\s*:\s*.+$'), get_speakers_names),
+            MessageHandler(filters.Regex('^Завершить ввод$'), get_speakers_names_done)
+        ],
+    },
+    fallbacks=[CommandHandler("start", start)],
+)
+
+application.add_handler(conv_handler)
+application.run_polling()
