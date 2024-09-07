@@ -217,6 +217,9 @@ def main():
             SET_MAIN_AUDIO: [
                 MessageHandler(filters.ATTACHMENT | filters.VOICE, get_audio),
             ],
+            # WAIT_REPLY: [
+
+            # ],
             SET_SPEAKERS_NAMES: [
                 MessageHandler(filters.Regex('SPEAKER(\d+)\s*:\s*(.+)'), get_speakers_names)
             ],
