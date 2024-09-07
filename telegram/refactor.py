@@ -58,9 +58,9 @@ def set_metadata(file_path: str, value: dict):
     with open(file_path, 'w') as file:
         json.dump(value, file)
 def get_chat_metadata(chat_id):
-    return get_metadata(f'./temp/{chat_id}.json')
+    return get_metadata(f'./temp/{chat_id}/metadata.json')
 def set_chat_metadata(chat_id, value):
-    set_metadata(f'./temp/{chat_id}.json', value)
+    set_metadata(f'./temp/{chat_id}/metadata.json', value)
 
 load_dotenv()
 
@@ -77,16 +77,18 @@ TYPE = 2
 SPEAKERS = 3
 MAIN_AUDIO = 4
 WAIT_REPLY = 5
+SPEAKER_NAMES = 6
 
-# credentials = pika.PlainCredentials('user', 'password')
-# connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
-#connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
+credentials = pika.PlainCredentials('user', 'password')
+connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
+# connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
-# channel = connection.channel()
-# channel.queue_declare(queue='auto_analyze')
-# channel.queue_declare(queue='manual_analyze')
+channel = connection.channel()
+channel.queue_declare(queue='auto_analyze')
+channel.queue_declare(queue='manual_analyze')
 
 async def start(update: Update, ctx):
+
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
 
     metadata = BASE_METADATA.copy()
@@ -185,19 +187,20 @@ async def get_type(update: Update, ctx):
 
 async def get_speakers(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
+    print(file_data)
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return SPEAKERS
-
-    metadata = get_chat_metadata(update.message.chat_id)
     
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
+    metadata = get_chat_metadata(update.message.chat_id)
     metadata['speakers'].append({
         'filename': file_data.file_name,
         'buffer': base64.b64encode(file_bytearray).decode(),
     })
+    set_chat_metadata(update.message.chat_id, metadata)
 
     return SPEAKERS
 
@@ -211,32 +214,57 @@ async def get_main_audio(update: Update, ctx):
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return MAIN_AUDIO
-
-    metadata = get_chat_metadata(update.message.chat_id)
     
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
+    metadata = get_chat_metadata(update.message.chat_id)
     metadata['audio'] = {
         'filename': file_data.file_name,
         'buffer': base64.b64encode(file_bytearray).decode(),
     }
+    set_chat_metadata(update.message.chat_id, metadata)
 
-    #return WAIT_REPLY
-    return ConversationHandler.END
+    #push metadata.json to ASR by rabbitmq
+
+    return WAIT_REPLY
+
+speakers_names_instruction = '''
+Введите имена спикеров в формате "SPEAKER_0:Иван И.И."
+После нажмите на подсказку "Завершить ввод".
+'''
+
+async def accept_request(update: Update, ctx):
+    await update.message.reply_text(speakers_names_instruction, reply_markup=ReplyKeyboardMarkup([['Завершить ввод']], one_time_keyboard=True, resize_keyboard=True))
+
+    return SPEAKER_NAMES
 
 async def get_speakers_names(update: Update, ctx):
-    pass
+    speaker_map = update.message.text.strip().split(':')
+
+    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
+        filedata = srt_file.read()
+
+    filedata.replace(speaker_map[0], speaker_map[1])
+
+    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'w') as srt_file:
+        srt_file.write(filedata)
+
+    return SPEAKER_NAMES
+
 
 async def get_speakers_names_done(update: Update, ctx):
-    pass
+    
+    #push speakers.srt to LLM by rabbitmq
+
+    return ConversationHandler.END
 
 async def end(update: Update, ctx):
     pass
 
 application = ApplicationBuilder()
 application.token(API_KEY)
-#application.base_url('http://sfo_prep-telegram-bot-api-1:8081/bot')
+application.base_url('http://telegram-bot-api-1:8081/bot')
 #application.base_url('http://localhost:8081/bot')
 
 application = application.build()
@@ -256,11 +284,18 @@ conv_handler = ConversationHandler(
             CallbackQueryHandler(get_type),
         ],
         SPEAKERS: [
-            MessageHandler(filters.AUDIO | filters.VOICE, get_speakers),
+            MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
             MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
         ],
         MAIN_AUDIO: [
-            MessageHandler(filters.AUDIO | filters.VOICE, get_main_audio),
+            MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
+        ],
+        WAIT_REPLY: [
+            MessageHandler(filters.Regex('^Продолжить$'), accept_request)
+        ],
+        SPEAKER_NAMES: [
+            MessageHandler(filters.Regex('^SPEAKER_[\d]{1,2}\s*:\s*.+$'), get_speakers_names),
+            MessageHandler(filters.Regex('^Завершить ввод$'), get_speakers_names_done)
         ],
     },
     fallbacks=[CommandHandler("start", start)],
