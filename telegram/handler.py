@@ -54,7 +54,7 @@ def asr_callback(ch, method, properties, body):
     with open(f"./temp/{data['chat_id']}/speakers.srt", 'wb') as srt_file:
         srt_file.write(base64.b64decode(data['srt_file']))
 
-        pdf_file_path = srt_preview.create_pdf(data['chat_id'])
+        pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
 
         asyncio.run(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)))
 
