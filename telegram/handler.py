@@ -40,7 +40,7 @@ connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-se
 channel = connection.channel()
 
 channel.queue_declare(queue='asr_to_handler')
-channel.queue_declare(queue='llm_to_handler')
+channel.queue_declare(queue='telegram_text_upload')
 
 asr_caption = '''
 Так как вы выбрали ручной режим, вы получаете предварительный отчет диаризации.
@@ -60,6 +60,8 @@ def asr_callback(ch, method, properties, body):
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
     
+    #tbd
 
+channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
 channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
 channel.start_consuming()

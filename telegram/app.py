@@ -81,11 +81,12 @@ SPEAKER_NAMES = 6
 
 credentials = pika.PlainCredentials('user', 'password')
 connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
-# connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
+# # connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
 channel = connection.channel()
 channel.queue_declare(queue='auto_analyze')
 channel.queue_declare(queue='manual_analyze')
+channel.queue_declare(queue='final_srt_to_llm')
 
 async def start(update: Update, ctx):
 
@@ -187,7 +188,7 @@ async def get_type(update: Update, ctx):
 
 async def get_speakers(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
-    print(file_data)
+
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return SPEAKERS
@@ -218,14 +219,21 @@ async def get_main_audio(update: Update, ctx):
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
-    metadata = get_chat_metadata(update.message.chat_id)
+    metadata : dict = get_chat_metadata(update.message.chat_id)
     metadata['audio'] = {
         'filename': file_data.file_name,
         'buffer': base64.b64encode(file_bytearray).decode(),
     }
     set_chat_metadata(update.message.chat_id, metadata)
 
-    #push metadata.json to ASR by rabbitmq
+    await update.message.reply_text('Отлично! Ваш запрос будет обработан как можно скорее.\nОжидайте...')
+
+    metadata.pop('password', None)
+
+    if metadata['type'] == 1:
+        channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
+    else:
+        channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
 
     return WAIT_REPLY
 
@@ -254,8 +262,15 @@ async def get_speakers_names(update: Update, ctx):
 
 
 async def get_speakers_names_done(update: Update, ctx):
-    
-    #push speakers.srt to LLM by rabbitmq
+    metadata = get_chat_metadata(update.message.chat_id)
+    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
+        request_body = {
+            'chat_id': update.message.chat_id,
+            'file_name': metadata['audio']['filename'],
+            'transcribed_text': srt_file.read(),
+        }
+
+        channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
 
     return ConversationHandler.END
 
@@ -278,7 +293,7 @@ conv_handler = ConversationHandler(
         PASSWORD: [
             CallbackQueryHandler(wait_for_password, pattern='^1$'),
             CallbackQueryHandler(skip_password, pattern='^2$'),
-            MessageHandler(filters.Language('en'), get_password),
+            MessageHandler(filters.TEXT, get_password),
         ],
         TYPE: [
             CallbackQueryHandler(get_type),
@@ -299,6 +314,7 @@ conv_handler = ConversationHandler(
         ],
     },
     fallbacks=[CommandHandler("start", start)],
+    per_message=True,
 )
 
 application.add_handler(conv_handler)
