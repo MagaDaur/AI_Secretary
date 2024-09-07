@@ -40,5 +40,5 @@ def llm_callback(ch, method, properties, body):
     data = json.loads(body)
     
 
-channel.basic_consume(queue='asr_line', auto_ack=True, on_message_callback=asr_callback)
+channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
 channel.start_consuming()
