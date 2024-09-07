@@ -9,16 +9,21 @@ from speechbrain.inference.speaker import SpeakerRecognition
 import whisperx
 from whisperx import load_align_model, align, assign_word_speakers
 import time
+import pandas as pd
 
 import pika
 import base64
 import json
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 load_dotenv()
 
 HF_TOKEN = getenv('HF_TOKEN')
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+logging.info(f"### Device: {DEVICE} ###")
 
 credentials = pika.PlainCredentials('user', 'password')
 connection = pika.BlockingConnection(
@@ -31,8 +36,13 @@ channel.queue_declare(queue='telegram_text_upload')
 
 
 def transcribe_audio(audio_file, model_name="large-v2", compute_type="float16"):
+    logging.info(f"### TRANSCRIBATION STARTED ###")
+
     model = whisperx.load_model(model_name, device='cuda', compute_type=compute_type)
     transcription_result = model.transcribe(audio_file)
+
+    logging.info(f"### TRANSCRIBATION ENDED ###")
+
     return transcription_result
 
 
@@ -51,8 +61,13 @@ def extract_audio_segments(audio_file, diarize_df):
 
 
 def perform_diarization(audio_file):
+    logging.info(f"### DIARIZATION STARTED ###")
+
     diarization_pipeline = DiarizationPipeline(use_auth_token=HF_TOKEN, device='cuda')
     diarized = diarization_pipeline(audio_file)
+
+    logging.info(f"### DIARIZATION ENDED ###")
+
     return diarized
 
 
@@ -238,7 +253,7 @@ def process_audio(ch, method, properties, body):
     data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers,
             "srt_file": get_file_bytes_as_b64(output_srt)}
 
-    channel.basic_publish('', 'telegram_text_upload', json.dumps(data))
+    channel.basic_publish('', 'asr_to_handler', json.dumps(data))
 
 
 if __name__ == "__main__":

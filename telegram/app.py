@@ -33,15 +33,20 @@ import pika
 import base64
 import json
 
+
 def get_directory_filenames(directory_path: str):
     filenames = []
     for filename in listdir(directory_path):
         filenames.append(filename)
 
     return filenames
+
+
 def get_file_bytes_as_b64(file_path: str):
     with open(file_path, 'rb') as file:
-        return base64.b64encode(file.read()).decode() 
+        return base64.b64encode(file.read()).decode()
+
+
 def get_speaker_files_b64(directory_path: str):
     data = []
     filenames = get_directory_filenames(directory_path)
@@ -51,16 +56,25 @@ def get_speaker_files_b64(directory_path: str):
             'buffer': get_file_bytes_as_b64(directory_path + filename)
         })
     return data
+
+
 def get_metadata(file_path: str):
     with open(file_path, 'r') as file:
         return json.load(file)
+
+
 def set_metadata(file_path: str, value: dict):
     with open(file_path, 'w') as file:
         json.dump(value, file)
+
+
 def get_chat_metadata(chat_id):
     return get_metadata(f'./temp/{chat_id}/metadata.json')
+
+
 def set_chat_metadata(chat_id, value):
     set_metadata(f'./temp/{chat_id}/metadata.json', value)
+
 
 load_dotenv()
 
@@ -80,7 +94,8 @@ WAIT_REPLY = 5
 SPEAKER_NAMES = 6
 
 credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=500))
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=5000))
 # # connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
 channel = connection.channel()
@@ -88,8 +103,8 @@ channel.queue_declare(queue='auto_analyze')
 channel.queue_declare(queue='manual_analyze')
 channel.queue_declare(queue='final_srt_to_llm')
 
-async def start(update: Update, ctx):
 
+async def start(update: Update, ctx):
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
 
     metadata = BASE_METADATA.copy()
@@ -97,9 +112,12 @@ async def start(update: Update, ctx):
     set_chat_metadata(update.message.chat_id, metadata)
 
     keyboard = [['Запуск']]
-    await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?', reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True))
+    await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?',
+                                    reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True,
+                                                                     resize_keyboard=True))
 
     return START
+
 
 async def ask_password(update: Update, ctx):
     keydoard = [
@@ -108,9 +126,11 @@ async def ask_password(update: Update, ctx):
             InlineKeyboardButton('Нет', callback_data='2'),
         ]
     ]
-    await update.message.reply_text('Желаете ли установить пароль на итоговый отчет?', reply_markup=InlineKeyboardMarkup(keydoard))
+    await update.message.reply_text('Желаете ли установить пароль на итоговый отчет?',
+                                    reply_markup=InlineKeyboardMarkup(keydoard))
 
     return PASSWORD
+
 
 async def wait_for_password(update: Update, ctx):
     query = update.callback_query
@@ -119,6 +139,7 @@ async def wait_for_password(update: Update, ctx):
     await query.edit_message_text('Введите желаемый пароль...')
 
     return PASSWORD
+
 
 async def skip_password(update: Update, ctx):
     query = update.callback_query
@@ -133,6 +154,7 @@ async def skip_password(update: Update, ctx):
     await query.edit_message_text('Хорошо. Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
 
     return TYPE
+
 
 async def get_password(update: Update, ctx):
     metadata = get_chat_metadata(update.message.chat_id)
@@ -153,6 +175,7 @@ async def get_password(update: Update, ctx):
 
     return TYPE
 
+
 auto_instruction = '''
 В автоматическом режиме вам необходимо:
 1. Отправить примеры голосов спикеров.
@@ -168,6 +191,7 @@ manual_instruction = '''
 4. Далее следовать инструкциям.
 '''
 
+
 async def get_type(update: Update, ctx):
     query = update.callback_query
     await query.answer()
@@ -179,12 +203,14 @@ async def get_type(update: Update, ctx):
     await query.delete_message()
 
     if query.data == '1':
-        await query.message.chat.send_message(auto_instruction, reply_markup=ReplyKeyboardMarkup([['Сохранить выбор']], one_time_keyboard=True, resize_keyboard=True))
+        await query.message.chat.send_message(auto_instruction, reply_markup=ReplyKeyboardMarkup([['Сохранить выбор']],
+                                                                                                 one_time_keyboard=True,
+                                                                                                 resize_keyboard=True))
         return SPEAKERS
 
     await query.message.chat.send_message(manual_instruction)
     return MAIN_AUDIO
-    
+
 
 async def get_speakers(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
@@ -192,7 +218,7 @@ async def get_speakers(update: Update, ctx):
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return SPEAKERS
-    
+
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
@@ -205,21 +231,23 @@ async def get_speakers(update: Update, ctx):
 
     return SPEAKERS
 
+
 async def get_speakers_done(update: Update, ctx):
     await update.message.reply_text('Примеры голосов спикеров сохранены!')
     await update.message.reply_text('Теперь отправьте аудио-файл для обработки...')
     return MAIN_AUDIO
+
 
 async def get_main_audio(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return MAIN_AUDIO
-    
+
     file = await file_data.get_file()
     file_bytearray = await file.download_as_bytearray()
 
-    metadata : dict = get_chat_metadata(update.message.chat_id)
+    metadata: dict = get_chat_metadata(update.message.chat_id)
     metadata['audio'] = {
         'filename': file_data.file_name,
         'buffer': base64.b64encode(file_bytearray).decode(),
@@ -237,15 +265,20 @@ async def get_main_audio(update: Update, ctx):
 
     return WAIT_REPLY
 
+
 speakers_names_instruction = '''
 Введите имена спикеров в формате "SPEAKER_0:Иван И.И."
 После нажмите на подсказку "Завершить ввод".
 '''
 
+
 async def accept_request(update: Update, ctx):
-    await update.message.reply_text(speakers_names_instruction, reply_markup=ReplyKeyboardMarkup([['Завершить ввод']], one_time_keyboard=True, resize_keyboard=True))
+    await update.message.reply_text(speakers_names_instruction,
+                                    reply_markup=ReplyKeyboardMarkup([['Завершить ввод']], one_time_keyboard=True,
+                                                                     resize_keyboard=True))
 
     return SPEAKER_NAMES
+
 
 async def get_speakers_names(update: Update, ctx):
     speaker_map = update.message.text.strip().split(':')
@@ -274,48 +307,51 @@ async def get_speakers_names_done(update: Update, ctx):
 
     return ConversationHandler.END
 
+
 async def end(update: Update, ctx):
     pass
 
-application = ApplicationBuilder()
-application.token(API_KEY)
-application.base_url('http://telegram-bot-api-1:8081/bot')
-#application.base_url('http://localhost:8081/bot')
 
-application = application.build()
+if __name__ == "__main__":
+    application = ApplicationBuilder()
+    application.token(API_KEY)
+    application.base_url('http://telegram-bot-api:8081/bot')
+    # application.base_url('http://localhost:8081/bot')
 
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler('start', start)],
-    states={
-        START: [
-            MessageHandler(filters.Regex('^Запуск$'), ask_password),
-        ],
-        PASSWORD: [
-            CallbackQueryHandler(wait_for_password, pattern='^1$'),
-            CallbackQueryHandler(skip_password, pattern='^2$'),
-            MessageHandler(filters.TEXT, get_password),
-        ],
-        TYPE: [
-            CallbackQueryHandler(get_type),
-        ],
-        SPEAKERS: [
-            MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
-            MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
-        ],
-        MAIN_AUDIO: [
-            MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
-        ],
-        WAIT_REPLY: [
-            MessageHandler(filters.Regex('^Продолжить$'), accept_request)
-        ],
-        SPEAKER_NAMES: [
-            MessageHandler(filters.Regex('^SPEAKER_[\d]{1,2}\s*:\s*.+$'), get_speakers_names),
-            MessageHandler(filters.Regex('^Завершить ввод$'), get_speakers_names_done)
-        ],
-    },
-    fallbacks=[CommandHandler("start", start)],
-    per_message=True,
-)
+    application = application.build()
 
-application.add_handler(conv_handler)
-application.run_polling()
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            START: [
+                MessageHandler(filters.Regex('^Запуск$'), ask_password),
+            ],
+            PASSWORD: [
+                CallbackQueryHandler(wait_for_password, pattern='^1$'),
+                CallbackQueryHandler(skip_password, pattern='^2$'),
+                MessageHandler(filters.TEXT, get_password),
+            ],
+            TYPE: [
+                CallbackQueryHandler(get_type),
+            ],
+            SPEAKERS: [
+                MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
+                MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
+            ],
+            MAIN_AUDIO: [
+                MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
+            ],
+            WAIT_REPLY: [
+                MessageHandler(filters.Regex('^Продолжить$'), accept_request)
+            ],
+            SPEAKER_NAMES: [
+                MessageHandler(filters.Regex('^SPEAKER_[\d]{1,2}\s*:\s*.+$'), get_speakers_names),
+                MessageHandler(filters.Regex('^Завершить ввод$'), get_speakers_names_done)
+            ],
+        },
+        fallbacks=[CommandHandler("start", start)],
+        per_message=True,
+    )
+
+    application.add_handler(conv_handler)
+    application.run_polling()

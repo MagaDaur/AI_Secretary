@@ -53,6 +53,8 @@ services:
     build:
       context: ./diar
       dockerfile: Dockerfile
+    env_file:
+      - .env
     deploy:
       resources:
         reservations:
@@ -61,7 +63,7 @@ services:
               count: 1
               capabilities: [ gpu ]
     volumes:
-      - asr-server-data:/var/lib/asr-server
+      - asr-server-data:/.cached
     restart: unless-stopped
 
   llm-server:
