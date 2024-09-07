@@ -3,6 +3,6 @@ pydub
 git+https://github.com/m-bain/whisperX.git
 fastapi
 pydantic
-uvicorn
-torch
 concurrent-log-handler
+python-dotenv
+pika

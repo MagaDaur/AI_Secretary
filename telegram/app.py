@@ -196,7 +196,7 @@ async def get_speakers_names(update : Update, ctx):
 def main():
     application = ApplicationBuilder()
     application.token(API_KEY)
-    application.base_url('http://sfo_prep-telegram-bot-api-1:8081/bot')
+    application.base_url('http://telegram-bot-api:8081/bot')
     #application.base_url('http://localhost:8081/bot')
 
     application = application.build()

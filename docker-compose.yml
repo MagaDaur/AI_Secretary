@@ -13,6 +13,7 @@ services:
       - rabbitmq_data:/var/lib/rabbitmq
 
   telegram-bot-api:
+    container_name: telegram-bot-api
     image: aiogram/telegram-bot-api:latest
     env_file:
       - .env
@@ -50,7 +51,7 @@ services:
   asr-server:
     container_name: asr-server
     build:
-      context: ./asr_server
+      context: ./diar
       dockerfile: Dockerfile
     deploy:
       resources:
