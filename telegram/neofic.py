@@ -51,18 +51,21 @@ voc={1:"I",2:"II",3:"III",4:"IV",5:"V",
      11:"XI",12:"XII",13:"XIII",14:"XIV",15:"XV",
      16:"XVI",17:"XVII",18:"XVIII",19:"XIX",20:"XX"}
 
-def create_pdf(data: dict):
+def create_pdf(data):
 
     llm_reply = data['transcribed_text']
 
     resume = {}
     for i in range(len(llm_reply)):
         for j in range(len(llm_reply[i])):
-            resume[f'{voc[j+1]}.      {llm_reply[i][j]['Вопрос обсуждения']}'] = {
-                'speakers': llm_reply[i][j]['Участники обсуждения'],
-                'decision': llm_reply[i][j]['Принятое решение'],
-                'context': llm_reply[i][j]['Контекст обсуждения'],
-                'time': llm_reply[i][j]['Время'],
+            question = llm_reply[i][j]['Вопрос обсуждения']
+            resume[f'{voc[j+1]}.{question}'] = {
+                'b': {
+                    'speakers': llm_reply[i][j]['Участники обсуждения'],
+                    'decision': llm_reply[i][j]['Принятое решение'],
+                    'context': llm_reply[i][j]['Контекст обсуждения'],
+                    'time': llm_reply[i][j]['Время'],
+                }
             }
 
     pdf=FPDF()
@@ -107,11 +110,10 @@ def create_pdf(data: dict):
                     pdf.cell(200, 10, txt=word(k)+', '.join(resume[i][j][k]), ln=1, align="L")
                 else:
                     pdf.cell(200, 10, txt=word(k)+resume[i][j][k], ln=1, align="L")
-
-
     
     metadata = get_chat_metadata(data['chat_id'])
-    pdf_filepath = f'./temp/{data['chat_id']}/{''.join(data['file_name'].split('.')[:-1])}.pdf'
+    filename = ''.join(data["file_name"].split(".")[:-1])
+    pdf_filepath = f'./temp/{data["chat_id"]}/{filename}.pdf'
 
     pdf.output(pdf_filepath)
     if 'password' in metadata:
