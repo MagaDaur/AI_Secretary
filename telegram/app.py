@@ -295,6 +295,7 @@ async def get_speakers_names(update: Update, ctx):
         await update.message.reply_text(f'Введите имя для SPEAKER_' + str(cur_speaker).zfill(2))
         return SPEAKER_NAMES
 
+    await update.message.reply_text('Ожидайте...')
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
         request_body = {
             'chat_id': update.message.chat_id,
