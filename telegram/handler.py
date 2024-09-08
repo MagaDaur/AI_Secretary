@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 import asyncio
 import base64
 
-import fonts.srt_preview as srt_preview
+import srt_preview
 
 import logging
 logging.basicConfig(level=logging.INFO)
