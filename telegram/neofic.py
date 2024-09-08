@@ -58,7 +58,7 @@ def create_pdf(data: dict):
     resume = {}
     for i in range(len(llm_reply)):
         for j in range(len(llm_reply[i])):
-            resume[f'{voc[j]}.      {llm_reply[i][j]['Вопрос обсуждения']}'] = {
+            resume[f'{voc[j+1]}.      {llm_reply[i][j]['Вопрос обсуждения']}'] = {
                 'speakers': llm_reply[i][j]['Участники обсуждения'],
                 'decision': llm_reply[i][j]['Принятое решение'],
                 'context': llm_reply[i][j]['Контекст обсуждения'],
