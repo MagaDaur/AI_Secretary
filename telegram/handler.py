@@ -24,6 +24,7 @@ import asyncio
 import base64
 
 import srt_preview
+import neofic
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -86,7 +87,8 @@ def asr_callback(ch, method, properties, body):
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
 
-    loop.run_until_complete(bot.send_message(data['chat_id'], 'А нету пдфа('))
+    pdf_filepath = neofic.create_pdf(data)
+    loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
 
 channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
 channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
