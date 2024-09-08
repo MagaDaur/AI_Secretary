@@ -80,7 +80,7 @@ def asr_callback(ch, method, properties, body):
 
         
         loop = asyncio.new_event_loop()
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)), debug=False)
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)))
         loop.close()
 
 def llm_callback(ch, method, properties, body):
