@@ -1,1 +1,2 @@
-# AI_Secretary
+# Запуск проекта 
+docker compose up --build
