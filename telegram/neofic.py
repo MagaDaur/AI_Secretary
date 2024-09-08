@@ -115,7 +115,7 @@ def create_pdf(data):
                 if k=="speakers":
                     pdf.cell(200, 10, txt=word(k)+', '.join(resume[i][j][k]), ln=1, align="L")
                 else:
-                    pdf.cell(200, 10, txt=word(k)+resume[i][j][k], ln=1, align="L")
+                    pdf.multi_cell(200, 10, txt=word(k)+resume[i][j][k], align="L")
     
     metadata = get_chat_metadata(data['chat_id'])
     filename = ''.join(data["file_name"].split(".")[:-1])

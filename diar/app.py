@@ -211,7 +211,7 @@ def verify_audio(ch, method, properties, body):
     reference_names = []
     reference_file_paths = []
     for ref_file in input_data['speakers']:
-        reference_names.append(ref_file['filename'])
+        reference_names.append(''.join(ref_file['filename'].split('.')[:-1]))
         ref_file_path = f"/tmp/{ref_file['filename']}"
         with open(ref_file_path, "wb") as buffer:
             buffer.write(base64.b64decode(ref_file['buffer']))
