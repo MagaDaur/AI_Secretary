@@ -224,10 +224,15 @@ def verify_audio(ch, method, properties, body):
 
     unique_speakers = count_unique_speakers(pd.DataFrame(result['transcription']))
 
-    data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers,
-            "srt_file": get_file_bytes_as_b64(output_srt)}
+    with open(output_srt, 'r') as srt_file:
 
-    channel.basic_publish('', 'asr_to_llm', json.dumps(data))
+        data = {
+            'chat_id': input_data['chat_id'],
+            'transcribed_text': srt_file.read(),
+            'file_name': input_data['audio']['filename'],
+        }
+
+        channel.basic_publish('', 'transcribed_text_upload', json.dumps(data))
 
 def process_audio(ch, method, properties, body):
     input_data = json.loads(body)
