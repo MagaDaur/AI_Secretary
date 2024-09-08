@@ -93,17 +93,18 @@ MAIN_AUDIO = 4
 WAIT_REPLY = 5
 SPEAKER_NAMES = 6
 
+#Установка канала соидинения с RabbitMQ
 credentials = pika.PlainCredentials('user', 'password')
 connection = pika.BlockingConnection(
     pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=5000))
-# # connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost', heartbeat=500))
 
+#Очереди RabbitMQ
 channel = connection.channel()
 channel.queue_declare(queue='auto_analyze')
 channel.queue_declare(queue='manual_analyze')
 channel.queue_declare(queue='final_srt_to_llm')
 
-
+# Начальное состояние диалога
 async def start(update: Update, ctx):
     CreateDirectory('./temp/', exist_ok=True)
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
