@@ -35,19 +35,6 @@ services:
       - "8082:8082"
     restart: unless-stopped
 
-#  telegram-handler:
-#    container_name: telegram-handler
-#    build:
-#      context: ./telegram
-#      dockerfile: Dockerfile-handler
-#    env_file:
-#      - .env
-#    volumes:
-#      - telegram-bot-api-data:/var/lib/telegram-bot-api
-#    ports:
-#      - "8083:8083"
-#    restart: unless-stopped
-
   asr-server:
     container_name: asr-server
     build:

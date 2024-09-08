@@ -44,7 +44,6 @@ cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
 months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
-dur="00:15"
 members="Петр, Игорь, Марина, Семён"
 voc={1:"I",2:"II",3:"III",4:"IV",5:"V",
      6:"VI",7:"VII",8:"VIII",9:"IX",10:"X",
@@ -52,6 +51,8 @@ voc={1:"I",2:"II",3:"III",4:"IV",5:"V",
      16:"XVI",17:"XVII",18:"XVIII",19:"XIX",20:"XX"}
 
 def create_pdf(data):
+    members = []
+    dur = "00:15"
 
     llm_reply = data['transcribed_text']
 
@@ -67,6 +68,11 @@ def create_pdf(data):
                     'time': llm_reply[i][j]['Время'],
                 }
             }
+            dur = llm_reply[i][j]['Время']
+            members +=  llm_reply[i][j]['Участники обсуждения']
+
+
+    members = ", ".join(list(set(members)))
 
     pdf=FPDF()
     pdf.add_page()
