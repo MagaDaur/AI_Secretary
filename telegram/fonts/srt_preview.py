@@ -8,8 +8,8 @@ def create_pdf(file_path: str):
     pdf=FPDF()
     pdf.add_page()
 
-    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
-    pdf.add_font("DejaVu", "B", "DejaVuSans-Bold.ttf", uni=True)
+    pdf.add_font("DejaVu", "", "./fonts/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "B", "./fonts/DejaVuSans-Bold.ttf", uni=True)
     pdf.set_font('DejaVu', '', 12)
 
     line_height = pdf.font_size * 2.5
