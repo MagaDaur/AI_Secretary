@@ -65,8 +65,6 @@ asr_caption = '''
 Внимательно ознакомьтесь с текстом и когда будете готовы определить имена спикеров нажмите на подсказку "Продолжить".
 '''
 
-loop = asyncio.get_event_loop()
-
 def asr_callback(ch, method, properties, body):
     data = json.loads(body)
 
@@ -81,14 +79,16 @@ def asr_callback(ch, method, properties, body):
         pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
 
         
-
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)), debug=False)
-        
+        loop.close()
 
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
 
+    loop = asyncio.new_event_loop()
     loop.run_until_complete(bot.send_message(data['chat_id'], 'А нету пдфа('))
+    loop.close()
 
 channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
 channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
