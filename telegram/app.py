@@ -282,7 +282,7 @@ async def get_speakers_names(update: Update, ctx):
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
         filedata = srt_file.read()
 
-    filedata.replace(speaker_old, speaker_new)
+    filedata = filedata.replace(speaker_old, speaker_new)
 
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'w') as srt_file:
         srt_file.write(filedata)
