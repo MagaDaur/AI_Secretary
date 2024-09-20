@@ -1,66 +1,25 @@
 import pika
 import telegram
 from telegram import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Update,
     ReplyKeyboardMarkup,
-    ReplyKeyboardRemove,
 )
-from telegram.ext import (
-    ApplicationBuilder,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-    ConversationHandler,
-    MessageHandler,
-    filters
+
+from lib import (
+    get_chat_metadata,
+    set_chat_metadata,
 )
 
 import json
 import os
-from dotenv import load_dotenv
+
 import asyncio
 import base64
 
 import srt_preview
 import neofic
 
-import logging
-logging.basicConfig(level=logging.INFO)
-
-load_dotenv()
-
-def get_metadata(file_path: str):
-    with open(file_path, 'r') as file:
-        return json.load(file)
-
-
-def set_metadata(file_path: str, value: dict):
-    with open(file_path, 'w') as file:
-        json.dump(value, file)
-
-
-def get_chat_metadata(chat_id):
-    return get_metadata(f'./temp/{chat_id}/metadata.json')
-
-
-
-def set_chat_metadata(chat_id, value):
-    set_metadata(f'./temp/{chat_id}/metadata.json', value)
-
 API_KEY = os.getenv('API_KEY')
-
-bot = telegram.Bot(API_KEY)
-
-credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials))
-#connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
-
-channel = connection.channel()
-
-channel.queue_declare(queue='asr_to_handler')
-channel.queue_declare(queue='telegram_text_upload')
+RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
 
 asr_caption = '''
 Так как вы выбрали ручной режим, вы получаете предварительный отчет диаризации.
@@ -81,15 +40,27 @@ def asr_callback(ch, method, properties, body):
         srt_file.write(base64.b64decode(data['srt_file']))
 
         pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
+
+        with telegram.Bot(API_KEY, local_mode=True) as bot:
+            loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
         
 
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
 
     pdf_filepath = neofic.create_pdf(data)
-    loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
+    with telegram.Bot(API_KEY, local_mode=True) as bot:
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
 
-channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
-channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
-channel.start_consuming()
+    
+
+if __name__ == '__main__':
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='asr_to_handler')
+    channel.queue_declare(queue='telegram_text_upload')
+
+    channel.basic_consume(queue='telegram_text_upload', auto_ack=True, on_message_callback=llm_callback)
+    channel.basic_consume(queue='asr_to_handler', auto_ack=True, on_message_callback=asr_callback)
+    channel.start_consuming()

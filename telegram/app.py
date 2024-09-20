@@ -15,14 +15,11 @@ from telegram.ext import (
     filters
 )
 
+from lib import *
+
 from os import (
     makedirs as CreateDirectory,
-    listdir,
     getenv,
-)
-
-from shutil import (
-    rmtree as RemoveDirectory
 )
 
 from dotenv import (
@@ -33,57 +30,13 @@ import pika
 import base64
 import json
 
-
-def get_directory_filenames(directory_path: str):
-    filenames = []
-    for filename in listdir(directory_path):
-        filenames.append(filename)
-
-    return filenames
-
-
-def get_file_bytes_as_b64(file_path: str):
-    with open(file_path, 'rb') as file:
-        return base64.b64encode(file.read()).decode()
-
-
-def get_speaker_files_b64(directory_path: str):
-    data = []
-    filenames = get_directory_filenames(directory_path)
-    for filename in filenames:
-        data.append({
-            'filename': filename,
-            'buffer': get_file_bytes_as_b64(directory_path + filename)
-        })
-    return data
-
-
-def get_metadata(file_path: str):
-    with open(file_path, 'r') as file:
-        return json.load(file)
-
-
-def set_metadata(file_path: str, value: dict):
-    with open(file_path, 'w') as file:
-        json.dump(value, file)
-
-
-def get_chat_metadata(chat_id):
-    return get_metadata(f'./temp/{chat_id}/metadata.json')
-
-
-def set_chat_metadata(chat_id, value):
-    set_metadata(f'./temp/{chat_id}/metadata.json', value)
-
-
 load_dotenv()
 
-BASE_METADATA = {
-    'names': [],
-    'speakers': [],
-}
-
 API_KEY = getenv('API_KEY')
+TELEGRAM_HOST = getenv('TELEGRAM_HOST')
+RABBITMQ_HOST = getenv('RABBITMQ_HOST')
+
+# Стейты диалога в боте
 
 START = 0
 PASSWORD = 1
@@ -92,17 +45,7 @@ SPEAKERS = 3
 MAIN_AUDIO = 4
 WAIT_REPLY = 5
 SPEAKER_NAMES = 6
-
-#Установка канала соидинения с RabbitMQ
-credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=5000))
-
-#Очереди RabbitMQ
-channel = connection.channel()
-channel.queue_declare(queue='auto_analyze')
-channel.queue_declare(queue='manual_analyze')
-channel.queue_declare(queue='final_srt_to_llm')
+GET_SAMPLE = 7
 
 # Начальное состояние диалога
 async def start(update: Update, ctx):
@@ -124,23 +67,38 @@ async def start(update: Update, ctx):
 async def ask_password(update: Update, ctx):
     keydoard = [
         [
-            InlineKeyboardButton('Да', callback_data='1'),
-            InlineKeyboardButton('Нет', callback_data='2'),
-        ]
+            InlineKeyboardButton('Сгенерировать пароль', callback_data='1'),
+            InlineKeyboardButton('Без пароля', callback_data='2'),
+        ],
     ]
-    await update.message.reply_text('Желаете ли установить пароль на итоговый отчет?',
+    await update.message.reply_text('Введите пароль для файла отчета или выберите иную опцию.',
                                     reply_markup=InlineKeyboardMarkup(keydoard))
 
     return PASSWORD
 
 
-async def wait_for_password(update: Update, ctx):
+async def generate_password(update: Update, ctx):
     query = update.callback_query
     await query.answer()
 
-    await query.edit_message_text('Введите желаемый пароль...')
+    chat_id = query.message.chat.id
+    password = create_password(12)
 
-    return PASSWORD
+    metadata = get_chat_metadata(chat_id)
+    metadata['password'] = password
+    set_chat_metadata(chat_id, metadata)
+
+    await query.edit_message_text(f'Отлично\! Ваш пароль: ||{password}||', parse_mode='MarkdownV2')
+
+    keyboard = [
+        [
+            InlineKeyboardButton('Авто', callback_data='1'),
+            InlineKeyboardButton('Ручной', callback_data='2')
+        ]
+    ]
+    await query.message.chat.send_message('Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
+
+    return TYPE
 
 
 async def skip_password(update: Update, ctx):
@@ -158,7 +116,7 @@ async def skip_password(update: Update, ctx):
     return TYPE
 
 
-async def get_password(update: Update, ctx):
+async def set_password(update: Update, ctx):
     metadata = get_chat_metadata(update.message.chat_id)
     metadata['password'] = update.message.text
     set_chat_metadata(update.message.chat_id, metadata)
@@ -261,10 +219,10 @@ async def get_main_audio(update: Update, ctx):
     metadata.pop('password', None)
 
     if metadata['type'] == 1:
-        channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
-    else:
-        channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
-
+        #channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
+        return ConversationHandler.END
+    
+    #channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
     return WAIT_REPLY
 
 async def accept_request(update: Update, ctx):
@@ -304,15 +262,26 @@ async def get_speakers_names(update: Update, ctx):
             'transcribed_text': srt_file.read(),
         }
 
-        channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
+        # channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
 
     return ConversationHandler.END
 
 if __name__ == "__main__":
+    # RabbitMQ
+
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, heartbeat=5000))
+    channel = connection.channel()
+
+    channel.queue_declare(queue='auto_analyze')
+    channel.queue_declare(queue='manual_analyze')
+    channel.queue_declare(queue='final_srt_to_llm')
+
+    #TelegramBOT
+
     application = ApplicationBuilder()
     application.token(API_KEY)
-    application.base_url('http://telegram-bot-api:8081/bot')
-    # application.base_url('http://localhost:8081/bot')
+    application.base_url(f'http://{TELEGRAM_HOST}:8081/bot')
+    application.local_mode(True)
 
     application = application.build()
 
@@ -323,9 +292,9 @@ if __name__ == "__main__":
                 MessageHandler(filters.Regex('^Запуск$'), ask_password),
             ],
             PASSWORD: [
-                CallbackQueryHandler(wait_for_password, pattern='^1$'),
+                CallbackQueryHandler(generate_password, pattern='^1$'),
                 CallbackQueryHandler(skip_password, pattern='^2$'),
-                MessageHandler(filters.TEXT, get_password),
+                MessageHandler(filters.TEXT, set_password),
             ],
             TYPE: [
                 CallbackQueryHandler(get_type),
