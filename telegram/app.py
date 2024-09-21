@@ -255,7 +255,7 @@ async def accept_response(update: Update, ctx):
 
     sound = AudioSegment.from_file(f'{temp_directory}/{metadata['audio']['filename']}')
     for subtitle in srt.subtitles:
-        speaker_name = subtitle.text.split(':', 1).split(' ')[1]
+        speaker_name = subtitle.text.split(':', 1)[0].split(' ')[1]
 
         if speaker_name not in speakers:
             speakers[speaker_name] = []
