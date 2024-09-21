@@ -55,7 +55,8 @@ def llm_callback(ch, method, properties, body):
     
 
 if __name__ == '__main__':
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
+    credentials = pika.PlainCredentials('user', 'password')
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials))
     channel = connection.channel()
 
     channel.queue_declare(queue='asr_to_handler')

@@ -318,7 +318,8 @@ async def get_speakers_names(update: Update, ctx):
 if __name__ == "__main__":
     # RabbitMQ
 
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, heartbeat=5000))
+    credentials = pika.PlainCredentials('user', 'password')
+    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials, heartbeat=5000))
     channel = connection.channel()
 
     channel.queue_declare(queue='auto_analyze')
