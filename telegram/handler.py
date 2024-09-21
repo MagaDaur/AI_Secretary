@@ -21,6 +21,8 @@ import neofic
 API_KEY = os.getenv('API_KEY')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
 
+bot = telegram.Bot(API_KEY, local_mode=True)
+
 asr_caption = '''
 Так как вы выбрали ручной режим, вы получаете предварительный отчет диаризации.
 Внимательно ознакомьтесь с текстом и когда будете готовы определить имена спикеров нажмите на подсказку "Продолжить".
@@ -41,16 +43,15 @@ def asr_callback(ch, method, properties, body):
 
         pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
 
-        with telegram.Bot(API_KEY, local_mode=True) as bot:
-            loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
         
 
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
 
     pdf_filepath = neofic.create_pdf(data)
-    with telegram.Bot(API_KEY, local_mode=True) as bot:
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
+    
+    loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
 
     
 
