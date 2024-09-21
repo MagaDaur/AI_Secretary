@@ -263,7 +263,7 @@ async def accept_response(update: Update, ctx):
             continue
 
         sample = sound[subtitle.start:subtitle.end]
-        sample_path = f'{temp_directory}/samples/{subtitle.name}_{subtitle.number}.ogg'
+        sample_path = f'{temp_directory}/samples/{subtitle.name}_{subtitle.number}.mp3'
         sample.export(sample_path)
 
         speakers[subtitle.name].append(sample_path)
@@ -271,6 +271,7 @@ async def accept_response(update: Update, ctx):
     for speaker_name in sorted(speakers):
         await update.message.reply_text(f'Примеры голоса спикера: {speaker_name}')
         for sample_path in speakers[speaker_name]:
+            await update.message.reply_text(sample_path)
             await update.message.reply_voice(sample_path)
 
     RemoveDirectory(f'{temp_directory}/samples')
