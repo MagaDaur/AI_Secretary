@@ -10,6 +10,7 @@ venv/
 *.ogg
 *.wav
 *.oga
+*.pkl
 
 # File extentions 
 *.pyc

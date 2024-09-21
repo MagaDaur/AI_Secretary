@@ -253,7 +253,7 @@ async def accept_response(update: Update, ctx):
         srt = SrtParser(srt_file)
         srt.parse()
 
-    sound = AudioSegment.from_file(f'{temp_directory}/{metadata['audio']['filename']}')
+    sound = AudioSegment.from_file(f'{temp_directory}/{metadata["audio"]["filename"]}')
     for subtitle in srt.subtitles:
         speaker_name = subtitle.text.split(':', 1)[0].split(' ')[1]
 
