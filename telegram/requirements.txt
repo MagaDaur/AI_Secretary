@@ -1,3 +1,5 @@
+aio-pika==9.4.3
+aiormq==6.8.1
 anyio==4.4.0
 certifi==2024.7.4
 chardet==5.2.0
@@ -8,10 +10,15 @@ h11==0.14.0
 httpcore==1.0.5
 httpx==0.27.0
 idna==3.7
+multidict==6.1.0
+pamqp==3.3.0
 pika==1.3.2
 pillow==10.4.0
+pydub==0.25.1
+pypdf==5.0.0
 PyPDF2==3.0.1
 python-dotenv==1.0.1
 python-telegram-bot==21.4
 sniffio==1.3.1
 subtitle-parser==2.0.0
+yarl==1.11.1
