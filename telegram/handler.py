@@ -43,7 +43,7 @@ def asr_callback(ch, method, properties, body):
 
         pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
 
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
+        loop.run_until_complete(bot.send_document(data['chat_id'], f"./temp/{data['chat_id']}/speakers.srt", caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
         
 
 def llm_callback(ch, method, properties, body):
