@@ -15,6 +15,10 @@ from telegram.ext import (
     filters
 )
 
+from pydub import (
+    AudioSegment
+)
+
 from lib import *
 
 from os import (
@@ -22,10 +26,19 @@ from os import (
     getenv,
 )
 
+from shutil import (
+    rmtree as RemoveDirectory
+)
+
+from subtitle_parser import (
+    SrtParser
+)
+
 from dotenv import (
     load_dotenv
 )
 
+import os
 import pika
 import base64
 import json
@@ -45,7 +58,6 @@ SPEAKERS = 3
 MAIN_AUDIO = 4
 WAIT_REPLY = 5
 SPEAKER_NAMES = 6
-GET_SAMPLE = 7
 
 # Начальное состояние диалога
 async def start(update: Update, ctx):
@@ -199,18 +211,23 @@ async def get_speakers_done(update: Update, ctx):
 
 
 async def get_main_audio(update: Update, ctx):
-    file_data = update.message.document or update.message.audio or update.message.voice
+    if update.message.voice is not None:
+        await update.message.reply_text('Голосовые сообщения пока не поддерживаются :(')
+        return
+    
+    file_data = update.message.document or update.message.audio
     if file_data is None:
         await update.message.reply_text('Неправильный формат файла!')
         return MAIN_AUDIO
 
     file = await file_data.get_file()
-    file_bytearray = await file.download_as_bytearray()
+    file_path = await file.download_to_drive(f'./temp/{update.message.chat_id}/{file_data.file_name}')
+    
 
     metadata: dict = get_chat_metadata(update.message.chat_id)
     metadata['audio'] = {
         'filename': file_data.file_name,
-        'buffer': base64.b64encode(file_bytearray).decode(),
+        'buffer': get_file_bytes_as_b64(file_path),
     }
     set_chat_metadata(update.message.chat_id, metadata)
 
@@ -219,13 +236,45 @@ async def get_main_audio(update: Update, ctx):
     metadata.pop('password', None)
 
     if metadata['type'] == 1:
-        #channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
+        channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
         return ConversationHandler.END
     
-    #channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
+    channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
     return WAIT_REPLY
 
-async def accept_request(update: Update, ctx):
+async def accept_response(update: Update, ctx):
+    temp_directory = f'./temp/{update.message.chat_id}'
+
+    CreateDirectory(f'{temp_directory}/samples/')
+    metadata = get_chat_metadata(update.message.chat_id)
+    speakers = {}
+
+    with open(f'{temp_directory}/speakers.srt', 'r', encoding='utf-8') as srt_file:
+        srt = SrtParser(srt_file)
+        srt.parse()
+
+    sound = AudioSegment.from_file(f'{temp_directory}/{metadata['audio']['filename']}')
+
+    for subtitle in srt.subtitles:
+        if subtitle.name not in speakers:
+            speakers[subtitle.name] = []
+
+        if len(speakers[subtitle.name]) >= 3:
+            continue
+
+        sample = sound[subtitle.start:subtitle.end]
+        sample_path = f'{temp_directory}/samples/{subtitle.name}_{subtitle.number}.ogg'
+        sample.export(sample_path)
+
+        speakers[subtitle.name].append(sample_path)
+    
+    for speaker_name in sorted(speakers):
+        await update.message.reply_text(f'Примеры голоса спикера: {speaker_name}')
+        for sample_path in speakers[speaker_name]:
+            await update.message.reply_voice(sample_path)
+
+    RemoveDirectory(f'{temp_directory}/samples')
+
     await update.message.reply_text('Введите имя для SPEAKER_00.')
     return SPEAKER_NAMES
 
@@ -247,7 +296,7 @@ async def get_speakers_names(update: Update, ctx):
         srt_file.write(filedata)
 
     cur_speaker += 1
-    metadata['cur_speaker'] += cur_speaker
+    metadata['cur_speaker'] = cur_speaker
     set_chat_metadata(update.message.chat_id, metadata)
 
     if cur_speaker < metadata['num_speakers']:
@@ -262,7 +311,7 @@ async def get_speakers_names(update: Update, ctx):
             'transcribed_text': srt_file.read(),
         }
 
-        # channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
+        channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
 
     return ConversationHandler.END
 
@@ -307,7 +356,7 @@ if __name__ == "__main__":
                 MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
             ],
             WAIT_REPLY: [
-                MessageHandler(filters.Regex('^Продолжить$'), accept_request)
+                MessageHandler(filters.Regex('^Продолжить$'), accept_response)
             ],
             SPEAKER_NAMES: [
                 MessageHandler(filters.TEXT, get_speakers_names),
