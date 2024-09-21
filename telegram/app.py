@@ -254,24 +254,24 @@ async def accept_response(update: Update, ctx):
         srt.parse()
 
     sound = AudioSegment.from_file(f'{temp_directory}/{metadata['audio']['filename']}')
-
     for subtitle in srt.subtitles:
-        if subtitle.name not in speakers:
-            speakers[subtitle.name] = []
+        speaker_name = subtitle.text.split(':', 1).split(' ')[1]
 
-        if len(speakers[subtitle.name]) >= 3:
+        if speaker_name not in speakers:
+            speakers[speaker_name] = []
+
+        if len(speakers[speaker_name]) >= 3:
             continue
 
         sample = sound[subtitle.start:subtitle.end]
-        sample_path = f'{temp_directory}/samples/{subtitle.name}_{subtitle.number}.mp3'
+        sample_path = f'{temp_directory}/samples/{speaker_name}_{subtitle.number}.mp3'
         sample.export(sample_path, format='mp3')
 
-        speakers[subtitle.name].append(sample_path)
+        speakers[speaker_name].append(sample_path)
     
     for speaker_name in sorted(speakers):
         await update.message.reply_text(f'Примеры голоса спикера: {speaker_name}')
         for sample_path in speakers[speaker_name]:
-            await update.message.reply_text(sample_path)
             with open(sample_path, 'rb') as sample:
                 await update.message.reply_voice(sample)
 
