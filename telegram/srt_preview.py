@@ -18,8 +18,6 @@ def create_pdf(file_path: str):
         parser = subtitle_parser.SrtParser(input_file)
         parser.parse()
 
-    print(parser.subtitles)
-
     parser.print_warnings()
     prev=""
     for subtitle in parser.subtitles:

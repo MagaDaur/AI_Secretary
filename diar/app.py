@@ -37,6 +37,10 @@ channel.queue_declare(queue='auto_analyze')
 channel.queue_declare(queue='manual_analyze')
 channel.queue_declare(queue='telegram_text_upload')
 
+def transcribe_audio(audio_file_path, initial_prompt):
+    model = whisper.load_model("large-v2")
+    result = model.transcribe(audio_file_path,initial_prompt=initial_prompt)
+    return result
 
 def transcribe_audio(audio_file, model_name="large-v2", compute_type="float16"):
     logging.info(f"### TRANSCRIBATION STARTED ###")

@@ -20,8 +20,9 @@ import neofic
 
 API_KEY = os.getenv('API_KEY')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
+TELEGRAM_HOST = os.getenv('TELEGRAM_HOST')
 
-bot = telegram.Bot(API_KEY)
+bot = telegram.Bot(API_KEY, base_url=f'http://{TELEGRAM_HOST}:8081/bot', local_mode=True)
 
 asr_caption = '''
 Так как вы выбрали ручной режим, вы получаете предварительный отчет диаризации.
