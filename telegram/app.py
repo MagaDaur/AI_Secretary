@@ -19,7 +19,7 @@ from pydub import (
     AudioSegment
 )
 
-from lib import *
+from local_lib import *
 
 from os import (
     makedirs as CreateDirectory,

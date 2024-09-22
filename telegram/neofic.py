@@ -1,25 +1,10 @@
 from fpdf import FPDF
 import datetime
 import PyPDF2
-import json
 
-def get_metadata(file_path: str):
-    with open(file_path, 'r') as file:
-        return json.load(file)
-
-
-def set_metadata(file_path: str, value: dict):
-    with open(file_path, 'w') as file:
-        json.dump(value, file)
-
-
-def get_chat_metadata(chat_id):
-    return get_metadata(f'./temp/{chat_id}/metadata.json')
-
-
-
-def set_chat_metadata(chat_id, value):
-    set_metadata(f'./temp/{chat_id}/metadata.json', value)
+from local_lib import (
+    get_chat_metadata,
+)
 
 def word(a:str):
     if a=="speakers":
@@ -37,22 +22,22 @@ def word(a:str):
     else:
         return ""
 
-theme="такой-то"
 goal="декларация цели встречи"
-date=datetime.datetime.now()
-cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
+
 months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
-members="Петр, Игорь, Марина, Семён"
 voc={1:"I",2:"II",3:"III",4:"IV",5:"V",
      6:"VI",7:"VII",8:"VIII",9:"IX",10:"X",
      11:"XI",12:"XII",13:"XIII",14:"XIV",15:"XV",
      16:"XVI",17:"XVII",18:"XVIII",19:"XIX",20:"XX"}
 
 def create_pdf(data):
+    date=datetime.datetime.now()
+    cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
+
     members = []
-    dur = "00:15"
+    dur = ''
 
     llm_reply = data['transcribed_text']
 

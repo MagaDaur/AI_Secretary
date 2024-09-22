@@ -4,7 +4,7 @@ from telegram import (
     ReplyKeyboardMarkup,
 )
 
-from lib import (
+from local_lib import (
     get_chat_metadata,
     set_chat_metadata,
 )
@@ -17,6 +17,7 @@ import base64
 
 import srt_preview
 import neofic
+import neofic_word
 
 API_KEY = os.getenv('API_KEY')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
@@ -51,8 +52,10 @@ def llm_callback(ch, method, properties, body):
     data = json.loads(body)
 
     pdf_filepath = neofic.create_pdf(data)
+    docx_filepath = neofic_word.create_docx(data)
     
     loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
+    loop.run_until_complete(bot.send_document(data['chat_id'], docx_filepath, caption='Держи!'))
 
     
 
