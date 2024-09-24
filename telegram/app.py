@@ -246,7 +246,7 @@ async def get_main_audio(update: Update, ctx):
     }
     set_chat_metadata(update.message.chat_id, metadata)
 
-    await update.message.reply_text('Отлично! Ваш запрос будет обработан как можно скорее.\n⏳ Ожидайте...')
+    await update.message.reply_text('⏳')
 
     metadata.pop('password', None)
 
