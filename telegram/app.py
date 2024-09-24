@@ -112,7 +112,7 @@ async def generate_password(update: Update, ctx):
     metadata['password'] = password
     set_chat_metadata(chat_id, metadata)
 
-    await query.edit_message_text(f'Отлично\! Ваш пароль: ||{password}||', parse_mode='MarkdownV2')
+    await query.edit_message_text(f'Отлично\! Ваш пароль: `{password}`', parse_mode='MarkdownV2')
 
     keyboard = [
         [
