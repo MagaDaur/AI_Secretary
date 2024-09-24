@@ -47,7 +47,7 @@ def asr_callback(ch, method, properties, body):
 
     pdf_file_path = srt_preview.create_pdf(srt_filepath)
     with open(pdf_file_path, 'rb') as pdf_file:
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], is_persistent=True, one_time_keyboard=True, resize_keyboard=True)),)
         
     db.add_record_with_files(data['chat_id'], audio_transcription_path=pdf_file_path)
 
@@ -78,7 +78,7 @@ def llm_callback(ch, method, properties, body):
     #     loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption='Офицальный PDF отчет.'))
     #     db.update_record_by_id(metadata['db_uid'], 'formal_protocol', ofic_pdf_filepath)
 
-    loop.run_until_complete(bot.send_message(data['chat_id'], 'Спасибо что воспльзовались нашим ботом!', reply_markup=ReplyKeyboardMarkup([['Start']], resize_keyboard=True, one_time_keyboard=True)))
+    loop.run_until_complete(bot.send_message(data['chat_id'], 'Спасибо что воспльзовались нашим ботом!', reply_markup=ReplyKeyboardMarkup([['Start']], is_persistent=True, resize_keyboard=True, one_time_keyboard=True)))
 
 if __name__ == '__main__':
     credentials = pika.PlainCredentials('user', 'password')

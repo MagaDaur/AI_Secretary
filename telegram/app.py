@@ -44,6 +44,8 @@ import base64
 import json
 import db
 
+from pathlib import Path
+
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -80,7 +82,7 @@ async def start(update: Update, ctx):
 
     await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?',
                                     reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True,
-                                    resize_keyboard=True))
+                                    resize_keyboard=True, is_persistent=True))
 
     return START
 
@@ -161,7 +163,8 @@ async def set_password(update: Update, ctx):
 auto_instruction = '''
 В автоматическом режиме вам необходимо:
 1. Отправить примеры голосов спикеров.
-    !!ВАЖНО!! - Названия аудио-файлов будут считаться именами спикеров.
+    !!ВАЖНО!! - Укажите имя спикера в описании к прилагаемому файлу.
+    !!ВАЖНО!! - Если у файлов не будет описания то названия аудио-файлов будут считаться именами спикеров.
 2. После загрузки всех аудио-файлов нажать на подсказку "Сохранить выбор".
 3. Далее следовать инструкциям.
 '''
@@ -187,7 +190,8 @@ async def get_type(update: Update, ctx):
     if query.data == '1':
         await query.message.chat.send_message(auto_instruction, reply_markup=ReplyKeyboardMarkup([['Сохранить выбор']],
                                                                                                  one_time_keyboard=True,
-                                                                                                 resize_keyboard=True))
+                                                                                                 resize_keyboard=True,
+                                                                                                 is_persistent=True))
         return SPEAKERS
 
     await query.message.chat.send_message(manual_instruction)
@@ -209,6 +213,7 @@ async def get_speakers(update: Update, ctx):
         'filename': file_data.file_name,
         'buffer': base64.b64encode(file_bytearray).decode(),
     })
+    metadata['members'].append(update.message.caption or Path(file_data.file_name).stem)
     set_chat_metadata(update.message.chat_id, metadata)
 
     return SPEAKERS
@@ -231,7 +236,6 @@ async def get_main_audio(update: Update, ctx):
         return MAIN_AUDIO
 
     file = await file_data.get_file()
-    logging.info(file_data)
     file_path = await file.download_to_drive(f'./temp/{update.message.chat_id}/{file_data.file_name}')
     
 
@@ -242,7 +246,7 @@ async def get_main_audio(update: Update, ctx):
     }
     set_chat_metadata(update.message.chat_id, metadata)
 
-    await update.message.reply_text('Отлично! Ваш запрос будет обработан как можно скорее.\nОжидайте...')
+    await update.message.reply_text('Отлично! Ваш запрос будет обработан как можно скорее.\n⏳ Ожидайте...')
 
     metadata.pop('password', None)
 
@@ -317,7 +321,7 @@ async def get_speakers_names(update: Update, ctx):
         await update.message.reply_text(f'Введите имя для SPEAKER_' + str(cur_speaker).zfill(2))
         return SPEAKER_NAMES
 
-    await update.message.reply_text('Ожидайте...')
+    await update.message.reply_text('⏳')
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
         request_body = {
             'chat_id': update.message.chat_id,

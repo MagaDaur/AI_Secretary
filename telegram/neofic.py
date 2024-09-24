@@ -46,7 +46,6 @@ def create_pdf(data):
     
     sound : AudioSegment = AudioSegment.from_file(f'./temp/{metadata['chat_id']}/{metadata['audio']['filename']}')
 
-
     resume = {}
     for i in range(len(llm_reply)):
         for j in range(len(llm_reply[i])):
