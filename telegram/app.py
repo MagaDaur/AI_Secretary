@@ -23,6 +23,7 @@ from local_lib import *
 
 from os import (
     makedirs as CreateDirectory,
+    listdir,
     getenv,
 )
 
@@ -38,10 +39,13 @@ from dotenv import (
     load_dotenv
 )
 
-import os
 import pika
 import base64
 import json
+import db
+
+import logging
+logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
@@ -61,17 +65,22 @@ SPEAKER_NAMES = 6
 
 # Начальное состояние диалога
 async def start(update: Update, ctx):
-    CreateDirectory('./temp/', exist_ok=True)
+    RemoveDirectory(f'./temp/{update.message.chat_id}/', ignore_errors=True)
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
+
+    records = db.get_stats_by_chat_id(update.message.chat_id)
 
     metadata = BASE_METADATA.copy()
     metadata['chat_id'] = update.message.chat_id
+    metadata['db_uid'] = 1 if len(records) == 0 else records[-1].id + 1
     set_chat_metadata(update.message.chat_id, metadata)
 
     keyboard = [['Запуск']]
+    
+
     await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?',
                                     reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True,
-                                                                     resize_keyboard=True))
+                                    resize_keyboard=True))
 
     return START
 
@@ -83,8 +92,9 @@ async def ask_password(update: Update, ctx):
             InlineKeyboardButton('Без пароля', callback_data='2'),
         ],
     ]
+    
     await update.message.reply_text('Введите пароль для файла отчета или выберите иную опцию.',
-                                    reply_markup=InlineKeyboardMarkup(keydoard))
+                                reply_markup=InlineKeyboardMarkup(keydoard))
 
     return PASSWORD
 
@@ -221,6 +231,7 @@ async def get_main_audio(update: Update, ctx):
         return MAIN_AUDIO
 
     file = await file_data.get_file()
+    logging.info(file_data)
     file_path = await file.download_to_drive(f'./temp/{update.message.chat_id}/{file_data.file_name}')
     
 
@@ -286,7 +297,7 @@ async def get_speakers_names(update: Update, ctx):
 
     cur_speaker = metadata['cur_speaker']
 
-    speaker_old = 'SPEAKER_' + str(cur_speaker).zfill(2)
+    speaker_old = 'Speaker SPEAKER_' + str(cur_speaker).zfill(2)
     speaker_new = update.message.text
 
     with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
@@ -299,6 +310,7 @@ async def get_speakers_names(update: Update, ctx):
 
     cur_speaker += 1
     metadata['cur_speaker'] = cur_speaker
+    metadata['members'].append(speaker_new)
     set_chat_metadata(update.message.chat_id, metadata)
 
     if cur_speaker < metadata['num_speakers']:
@@ -317,6 +329,28 @@ async def get_speakers_names(update: Update, ctx):
 
     return ConversationHandler.END
 
+async def stats(update: Update, ctx):
+    records = db.get_stats_by_chat_id(update.message.chat_id)
+    records_count = len(records)
+
+    if records_count > 0:
+        await update.message.reply_text(f'Ваша история содержит {records_count} запросов:')
+        msg = ''
+        for record in records:
+            msg += f'''
+ID Запроса {record.id}:
+    Офицальный отчет: {'Available' if record.formal_protocol else 'Not Available'}
+    Неофицальный отчет: {'Available' if record.informal_protocol else 'Not Available'}
+    Отчет о транскрибации: {'Available' if record.audio_transcription else 'Not Available'}
+            '''
+        
+        await update.message.reply_text(msg)
+
+        return
+    
+    await update.message.reply_text('Вы еще не сделали ни одного запроса.')
+
+
 if __name__ == "__main__":
     # RabbitMQ
 
@@ -326,7 +360,7 @@ if __name__ == "__main__":
 
     channel.queue_declare(queue='auto_analyze')
     channel.queue_declare(queue='manual_analyze')
-    channel.queue_declare(queue='final_srt_to_llm')
+    channel.queue_declare(queue='transcribed_text_upload')
 
     #TelegramBOT
 
@@ -338,7 +372,10 @@ if __name__ == "__main__":
     application = application.build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[
+            CommandHandler('start', start),
+            MessageHandler(filters.Regex('^Start$'), start),
+        ],
         states={
             START: [
                 MessageHandler(filters.Regex('^Запуск$'), ask_password),
@@ -365,8 +402,12 @@ if __name__ == "__main__":
                 MessageHandler(filters.TEXT, get_speakers_names),
             ],
         },
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[
+            CommandHandler("start", start),
+            MessageHandler(filters.Regex('^Start$'), start),
+        ],
     )
 
+    application.add_handler(CommandHandler('stats', stats))
     application.add_handler(conv_handler)
     application.run_polling()

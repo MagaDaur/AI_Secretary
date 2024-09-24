@@ -6,6 +6,7 @@ import string
 
 BASE_METADATA = {
     'speakers': [],
+    'members': [],
 }
 
 def get_directory_filenames(directory_path: str):
@@ -40,3 +41,10 @@ def set_chat_metadata(chat_id, value):
 def create_password(l: int):
     alphabet = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alphabet) for _ in range(l))
+
+def seconds_to_time(total_seconds):
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+
+    return f"{hours:02}:{minutes:02}:{seconds:02}"

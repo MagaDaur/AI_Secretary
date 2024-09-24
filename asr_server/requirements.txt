@@ -1,4 +1,0 @@
-pedalboard
-noisereduce
-audio2numpy
-pika

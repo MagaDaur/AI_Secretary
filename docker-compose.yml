@@ -12,16 +12,6 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
 
-  telegram-bot-api:
-    container_name: telegram-bot-api
-    image: aiogram/telegram-bot-api:latest
-    env_file:
-      - .env
-    volumes:
-      - telegram-bot-api-data:/var/lib/telegram-bot-api
-    ports:
-      - "8081:8081"
-
   telegram-app:
     container_name: telegram-app
     build:
@@ -31,9 +21,20 @@ services:
       - .env
     volumes:
       - telegram-bot-api-data:/var/lib/telegram-bot-api
+      - telegram-app:/db
     ports:
       - "8082:8082"
     restart: unless-stopped
+
+  telegram-bot-api:
+    container_name: telegram-bot-api
+    image: aiogram/telegram-bot-api:latest
+    env_file:
+      - .env
+    volumes:
+      - telegram-bot-api-data:/var/lib/telegram-bot-api
+    ports:
+      - "8081:8081"
 
   asr-server:
     container_name: asr-server
@@ -68,3 +69,4 @@ volumes:
     driver: local
   asr-server-data:
   rabbitmq_data:
+  telegram-app:

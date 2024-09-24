@@ -18,6 +18,11 @@ import base64
 import srt_preview
 import neofic
 import neofic_word
+import ofic
+import db
+
+import logging
+logging.basicConfig(level=logging.INFO)
 
 API_KEY = os.getenv('API_KEY')
 RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
@@ -34,30 +39,46 @@ loop = asyncio.get_event_loop()
 
 def asr_callback(ch, method, properties, body):
     data = json.loads(body)
+    
+    srt_filepath = f"./temp/{data['chat_id']}/speakers.srt"
+
+    with open(srt_filepath, 'wb') as srt_file:
+        srt_file.write(base64.b64decode(data['srt_file']))
+
+    pdf_file_path = srt_preview.create_pdf(srt_filepath)
+    with open(pdf_file_path, 'rb') as pdf_file:
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
+        
+    db.add_record_with_files(data['chat_id'], audio_transcription_path=pdf_file_path)
 
     metadata = get_chat_metadata(data['chat_id'])
     metadata['num_speakers'] = data['unique_speakers']
     metadata['cur_speaker'] = 0
     set_chat_metadata(data['chat_id'], metadata)
 
-    with open(f"./temp/{data['chat_id']}/speakers.srt", 'wb') as srt_file:
-        srt_file.write(base64.b64decode(data['srt_file']))
-
-        pdf_file_path = srt_preview.create_pdf(f"./temp/{data['chat_id']}/speakers.srt")
-
-        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file_path, caption=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True)),)
-        
-
 def llm_callback(ch, method, properties, body):
     data = json.loads(body)
+    metadata = get_chat_metadata(data['chat_id'])
 
-    pdf_filepath = neofic.create_pdf(data)
-    docx_filepath = neofic_word.create_docx(data)
-    
-    loop.run_until_complete(bot.send_document(data['chat_id'], pdf_filepath, caption='Держи!'))
-    loop.run_until_complete(bot.send_document(data['chat_id'], docx_filepath, caption='Держи!'))
+    logging.info(data)
 
+    neofic_pdf_filepath = neofic.create_pdf(data)
+    neofic_docx_filepath = neofic_word.create_docx(data)
+
+    # ofic_pdf_filepath = ofic.generate_protocol(data)
     
+    with open(neofic_pdf_filepath, 'rb') as pdf_file:
+        loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption='Неофицальный PDF отчет.'))
+        db.update_record_by_id(metadata['db_uid'], 'informal_protocol', neofic_pdf_filepath)
+
+    with open(neofic_docx_filepath, 'rb') as docx_file:
+        loop.run_until_complete(bot.send_document(data['chat_id'], docx_file, caption='Неофицальный DOCX отчет.'))
+
+    # with open(ofic_pdf_filepath, 'rb') as pdf_file:
+    #     loop.run_until_complete(bot.send_document(data['chat_id'], pdf_file, caption='Офицальный PDF отчет.'))
+    #     db.update_record_by_id(metadata['db_uid'], 'formal_protocol', ofic_pdf_filepath)
+
+    loop.run_until_complete(bot.send_message(data['chat_id'], 'Спасибо что воспльзовались нашим ботом!', reply_markup=ReplyKeyboardMarkup([['Start']], resize_keyboard=True, one_time_keyboard=True)))
 
 if __name__ == '__main__':
     credentials = pika.PlainCredentials('user', 'password')

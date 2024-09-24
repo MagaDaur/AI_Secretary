@@ -4,6 +4,11 @@ import PyPDF2
 
 from local_lib import (
     get_chat_metadata,
+    seconds_to_time,
+)
+
+from pydub import (
+    AudioSegment
 )
 
 def word(a:str):
@@ -36,10 +41,11 @@ def create_pdf(data):
     date=datetime.datetime.now()
     cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
 
-    members = []
-    dur = ''
-
+    metadata = get_chat_metadata(data['chat_id'])
     llm_reply = data['transcribed_text']
+    
+    sound : AudioSegment = AudioSegment.from_file(f'./temp/{metadata['chat_id']}/{metadata['audio']['filename']}')
+
 
     resume = {}
     for i in range(len(llm_reply)):
@@ -53,11 +59,10 @@ def create_pdf(data):
                     'time': llm_reply[i][j]['Время'],
                 }
             }
-            dur = llm_reply[i][j]['Время']
-            members +=  llm_reply[i][j]['Участники обсуждения']
 
 
-    members = ", ".join(list(set(members)))
+    dur = seconds_to_time(int(sound.duration_seconds))
+    members = ", ".join(metadata['members'])
 
     pdf=FPDF()
     pdf.add_page()
@@ -102,19 +107,18 @@ def create_pdf(data):
                 else:
                     pdf.multi_cell(200, 10, txt=word(k)+resume[i][j][k], align="L")
     
-    metadata = get_chat_metadata(data['chat_id'])
     filename = ''.join(data["file_name"].split(".")[:-1])
     pdf_filepath = f'./temp/{data["chat_id"]}/{filename}.pdf'
 
     pdf.output(pdf_filepath)
     if 'password' in metadata:
-        with open(pdf_filepath, 'rb') as input_file:
-            pdf_reader = PyPDF2.PdfReader(input_file)
+        with open(pdf_filepath, 'r+b') as pdf_file:
+            pdf_reader = PyPDF2.PdfReader(pdf_file)
             pdf_writer = PyPDF2.PdfWriter()
             for page in pdf_reader.pages:
                 pdf_writer.add_page(page)
-            pdf_writer.encrypt(user_password=metadata['password'], owner_pwd=metadata['password'], use_128bit=True)
-            with open(pdf_filepath, 'wb') as output_file:
-                pdf_writer.write(output_file)
+            pdf_writer.encrypt(user_password=metadata['password'], owner_pwd=metadata['password'])
+            
+            pdf_writer.write(pdf_file)
     
     return pdf_filepath

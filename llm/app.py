@@ -52,7 +52,7 @@ def callback(ch: BlockingChannel, method, properties, body):
             # )
 
             request_data = {
-                "modelUri": "gpt://b1g72uajlds114mlufqi/yandexgpt/latest",
+                "modelUri": "gpt://b1glrfrec5q420bjhi7n/yandexgpt/latest",
                 "completionOptions": {
                     "stream": False,
                     "temperature": 0.1,

@@ -5,7 +5,11 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.shared import Inches
 import msoffcrypto
 
-from local_lib import get_chat_metadata
+from local_lib import get_chat_metadata, seconds_to_time
+
+from pydub import (
+    AudioSegment
+)
 
 def word(a:str):
     if a=="speakers":
@@ -35,11 +39,11 @@ voc={1:"I",2:"II",3:"III",4:"IV",5:"V",
 
 def create_docx(data):
 
+    metadata = get_chat_metadata(data['chat_id'])
+
     date=datetime.datetime.now()
     cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
-
-    members = []
-    dur = ''
+    sound : AudioSegment = AudioSegment.from_file(f'./temp/{metadata['chat_id']}/{metadata['audio']['filename']}')
 
     llm_reply = data['transcribed_text']
 
@@ -55,11 +59,10 @@ def create_docx(data):
                     'time': llm_reply[i][j]['Время'],
                 }
             }
-            dur = llm_reply[i][j]['Время']
-            members +=  llm_reply[i][j]['Участники обсуждения']
 
 
-    members = ", ".join(list(set(members)))
+    dur = seconds_to_time(int(sound.duration_seconds))
+    members = ", ".join(metadata['members'])
 
     doc=Document()
 
@@ -173,14 +176,13 @@ def create_docx(data):
                     par1.add_run(word(k)+resume[i][j][k])
                     par1.alignment=WD_ALIGN_PARAGRAPH.LEFT
 
-    metadata = get_chat_metadata(data['chat_id'])
     filename = ''.join(data["file_name"].split(".")[:-1])
-    docx_filepath = f'./temp/{data["chat_id"]}/{filename}.pdf'
+    docx_filepath = f'./temp/{data["chat_id"]}/{filename}.docx'
 
     doc.save(docx_filepath)
     if 'password' in metadata:
         with open(docx_filepath, 'r+b') as docx_file:
             doc = msoffcrypto.OfficeFile(docx_file)
             doc.encrypt(metadata['password'], docx_file)
-
+            
     return docx_filepath
