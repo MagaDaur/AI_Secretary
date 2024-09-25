@@ -262,7 +262,6 @@ async def accept_response(update: Update, ctx):
 
     CreateDirectory(f'{temp_directory}/samples/')
     metadata = get_chat_metadata(update.message.chat_id)
-    speakers = {}
 
     with open(f'{temp_directory}/speakers.srt', 'r', encoding='utf-8') as srt_file:
         srt = SrtParser(srt_file)
@@ -272,57 +271,65 @@ async def accept_response(update: Update, ctx):
     for subtitle in srt.subtitles:
         speaker_name = subtitle.text.split(':', 1)[0].split(' ')[1]
 
-        if speaker_name not in speakers:
-            speakers[speaker_name] = []
+        if speaker_name not in metadata['speakers_samples']:
+            metadata['speakers_samples'][speaker_name] = []
 
-        if len(speakers[speaker_name]) >= 3:
+        if len(metadata['speakers_samples'][speaker_name]) >= 3:
             continue
 
         sample = sound[subtitle.start:subtitle.end]
         sample_path = f'{temp_directory}/samples/{speaker_name}_{subtitle.number}.mp3'
         sample.export(sample_path, format='mp3')
 
-        speakers[speaker_name].append(sample_path)
-    
-    for speaker_name in sorted(speakers):
-        await update.message.reply_text(f'Примеры голоса спикера: {speaker_name}')
-        for sample_path in speakers[speaker_name]:
-            with open(sample_path, 'rb') as sample:
-                await update.message.reply_voice(sample)
+        metadata['speakers_samples'][speaker_name].append(sample_path)
 
-    RemoveDirectory(f'{temp_directory}/samples')
+    set_chat_metadata(update.message.chat_id, metadata)
+    
+    await update.message.reply_text(f'Примеры голоса спикера: SPEAKER_00')
+    for sample_path in metadata['speakers_samples']['SPEAKER_00']:
+        with open(sample_path, 'rb') as sample:
+            await update.message.reply_voice(sample)
 
     await update.message.reply_text('Введите имя для SPEAKER_00.')
     return SPEAKER_NAMES
 
 
 async def get_speakers_names(update: Update, ctx):
+    temp_directory = f'./temp/{update.message.chat_id}'
     metadata = get_chat_metadata(update.message.chat_id)
+    speakers_samples = metadata['speakers_samples']
+    cur_speaker_idx = metadata['cur_speaker']
+    speakers_names = sorted(speakers_samples)
+    cur_speaker_name = speakers_names[cur_speaker_idx]
 
-    cur_speaker = metadata['cur_speaker']
-
-    speaker_old = 'Speaker SPEAKER_' + str(cur_speaker).zfill(2)
+    speaker_old = f'Speaker {cur_speaker_name}'
     speaker_new = update.message.text
 
-    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
+    with open(f'{temp_directory}/speakers.srt', 'r') as srt_file:
         filedata = srt_file.read()
 
     filedata = filedata.replace(speaker_old, speaker_new)
 
-    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'w') as srt_file:
+    with open(f'{temp_directory}/speakers.srt', 'w') as srt_file:
         srt_file.write(filedata)
 
-    cur_speaker += 1
-    metadata['cur_speaker'] = cur_speaker
+    metadata['cur_speaker'] = cur_speaker_idx + 1
     metadata['members'].append(speaker_new)
     set_chat_metadata(update.message.chat_id, metadata)
 
-    if cur_speaker < metadata['num_speakers']:
-        await update.message.reply_text(f'Введите имя для SPEAKER_' + str(cur_speaker).zfill(2))
+    if metadata['cur_speaker'] < metadata['num_speakers']:
+        next_speaker_name = speakers_names[cur_speaker_idx + 1]
+        await update.message.reply_text(f'Примеры голоса спикера: {next_speaker_name}')
+        for sample_path in speakers_samples[next_speaker_name]:
+            with open(sample_path, 'rb') as sample:
+                await update.message.reply_voice(sample)
+        await update.message.reply_text(f'Введите имя для {next_speaker_name}')
         return SPEAKER_NAMES
 
+    RemoveDirectory(f'{temp_directory}/samples')
+    
     await update.message.reply_text('⏳')
-    with open(f'./temp/{update.message.chat_id}/speakers.srt', 'r') as srt_file:
+    with open(f'{temp_directory}/speakers.srt', 'r') as srt_file:
         request_body = {
             'chat_id': update.message.chat_id,
             'file_name': metadata['audio']['filename'],

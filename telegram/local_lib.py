@@ -7,6 +7,7 @@ import string
 BASE_METADATA = {
     'speakers': [],
     'members': [],
+    'speakers_samples': {},
 }
 
 def get_directory_filenames(directory_path: str):

@@ -21,6 +21,10 @@ import neofic_word
 import ofic
 import db
 
+from shutil import (
+    rmtree as RemoveDirectory
+)
+
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -79,6 +83,8 @@ def llm_callback(ch, method, properties, body):
     #     db.update_record_by_id(metadata['db_uid'], 'formal_protocol', ofic_pdf_filepath)
 
     loop.run_until_complete(bot.send_message(data['chat_id'], 'Спасибо что воспльзовались нашим ботом!', reply_markup=ReplyKeyboardMarkup([['Start']], is_persistent=True, resize_keyboard=True, one_time_keyboard=True)))
+
+    RemoveDirectory(f'./temp/{data['chat_id']}/', ignore_errors=True)
 
 if __name__ == '__main__':
     credentials = pika.PlainCredentials('user', 'password')
