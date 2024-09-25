@@ -82,7 +82,7 @@ async def start(update: Update, ctx):
 
     await update.message.reply_text('Привет я ИИ-Секретарь. Начнём?',
                                     reply_markup=ReplyKeyboardMarkup(keyboard, one_time_keyboard=True,
-                                    resize_keyboard=True, is_persistent=True))
+                                    resize_keyboard=True, ))
 
     return START
 
@@ -191,7 +191,7 @@ async def get_type(update: Update, ctx):
         await query.message.chat.send_message(auto_instruction, reply_markup=ReplyKeyboardMarkup([['Сохранить выбор']],
                                                                                                  one_time_keyboard=True,
                                                                                                  resize_keyboard=True,
-                                                                                                 is_persistent=True))
+                                                                                                 ))
         return SPEAKERS
 
     await query.message.chat.send_message(manual_instruction)
