@@ -173,7 +173,7 @@ def create_docx(data):
                     font = run.font
                     font.name = 'Arial'  # Указываем имя шрифта
                     font.size = Pt(12)
-                    par1.add_run(word(k)+resume[i][j][k])
+                    par1.add_run(word(k)+(resume[i][j][k] or " "))
                     par1.alignment=WD_ALIGN_PARAGRAPH.LEFT
 
     filename = ''.join(data["file_name"].split(".")[:-1])
