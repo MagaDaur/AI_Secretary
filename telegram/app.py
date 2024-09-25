@@ -318,7 +318,7 @@ async def get_speakers_names(update: Update, ctx):
     set_chat_metadata(update.message.chat_id, metadata)
 
     if metadata['cur_speaker'] < metadata['num_speakers']:
-        next_speaker_name = speakers_names[cur_speaker_idx + 1]
+        next_speaker_name = speakers_names[metadata['cur_speaker']]
         await update.message.reply_text(f'Примеры голоса спикера: {next_speaker_name}')
         for sample_path in speakers_samples[next_speaker_name]:
             with open(sample_path, 'rb') as sample:
