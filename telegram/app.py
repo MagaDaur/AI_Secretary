@@ -372,6 +372,8 @@ if __name__ == "__main__":
     application.token(API_KEY)
     application.base_url(f'http://{TELEGRAM_HOST}:8081/bot')
     application.local_mode(True)
+    application.read_timeout(30)
+    application.write_timeout(30)
 
     application = application.build()
 
