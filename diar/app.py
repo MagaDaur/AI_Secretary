@@ -45,7 +45,7 @@ def transcribe_audio(audio_file_path, initial_prompt):
 def transcribe_audio(audio_file, model_name="large-v2", compute_type="float16"):
     logging.info(f"### TRANSCRIBATION STARTED ###")
 
-    model = whisperx.load_model(model_name, device='cuda', compute_type=compute_type)
+    model = whisperx.load_model(model_name, device=DEVICE, compute_type=compute_type, language='ru')
     transcription_result = model.transcribe(audio_file)
 
     logging.info(f"### TRANSCRIBATION ENDED ###")
@@ -70,7 +70,7 @@ def extract_audio_segments(audio_file, diarize_df):
 def perform_diarization(audio_file):
     logging.info(f"### DIARIZATION STARTED ###")
 
-    diarization_pipeline = DiarizationPipeline(use_auth_token=HF_TOKEN, device='cuda')
+    diarization_pipeline = DiarizationPipeline(use_auth_token=HF_TOKEN, device=DEVICE)
     diarized = diarization_pipeline(audio_file)
 
     logging.info(f"### DIARIZATION ENDED ###")
@@ -131,7 +131,7 @@ def compare_audio_with_references(segment_row, reference_samples, verification):
 
 def align_speakers_to_text(script, diarize_df, audio_file):
     model_a, metadata = load_align_model(language_code=script["language"], device=DEVICE)
-    script_aligned = align(script["segments"], model_a, metadata, audio_file, DEVICE)
+    script_aligned = align(script["segments"], model_a, metadata, audio_file, device=DEVICE)
 
     result_segments, word_seg = list(assign_word_speakers(diarize_df, script_aligned).values())
 
