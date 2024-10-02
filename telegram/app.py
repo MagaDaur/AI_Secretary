@@ -15,47 +15,33 @@ from telegram.ext import (
     filters
 )
 
-from pydub import (
-    AudioSegment
-)
-
-from local_lib import *
-
 from os import (
     makedirs as CreateDirectory,
     listdir,
     getenv,
 )
 
-from shutil import (
-    rmtree as RemoveDirectory
-)
+from shutil import rmtree as RemoveDirectory
+from subtitle_parser import SrtParser
+from pydub import AudioSegment
+from local_lib import *
 
-from subtitle_parser import (
-    SrtParser
-)
-
-from dotenv import (
-    load_dotenv
-)
-
-import pika
+import aio_pika
 import base64
 import json
 import db
-
-from pathlib import Path
-
 import logging
-logging.basicConfig(level=logging.INFO)
+import dotenv
+import asyncio
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO)
+dotenv.load_dotenv()
 
 API_KEY = getenv('API_KEY')
 TELEGRAM_HOST = getenv('TELEGRAM_HOST')
 RABBITMQ_HOST = getenv('RABBITMQ_HOST')
-
-# Стейты диалога в боте
+RABBITMQ_LOGIN = getenv('RABBITMQ_DEFAULT_USER')
+RABBITMQ_PASSWORD = getenv('RABBITMQ_DEFAULT_PASS')
 
 START = 0
 PASSWORD = 1
@@ -65,7 +51,22 @@ MAIN_AUDIO = 4
 WAIT_REPLY = 5
 SPEAKER_NAMES = 6
 
-# Начальное состояние диалога
+auto_instruction = '''
+В автоматическом режиме вам необходимо:
+1. Отправить примеры голосов спикеров.
+    !!ВАЖНО!! - Укажите имя спикера в описании к прилагаемому файлу.
+    !!ВАЖНО!! - Если у файлов не будет описания то названия аудио-файлов будут считаться именами спикеров.
+2. После загрузки всех аудио-файлов нажать на подсказку "Сохранить выбор".
+3. Далее следовать инструкциям.
+'''
+manual_instruction = '''
+В ручном режиме вам необходимо:
+1. Отправить аудио-файл который будет проанализован.
+2. После обработки, вам придет предварительный отчет, где имена спикеров будут иметь вид "SPEAKER_0".
+3. Вручную ввести имена спикеров.
+4. Далее следовать инструкциям.
+'''
+
 async def start(update: Update, ctx):
     RemoveDirectory(f'./temp/{update.message.chat_id}/', ignore_errors=True)
     CreateDirectory(f'./temp/{update.message.chat_id}/', exist_ok=True)
@@ -86,7 +87,6 @@ async def start(update: Update, ctx):
 
     return START
 
-
 async def ask_password(update: Update, ctx):
     keydoard = [
         [
@@ -99,7 +99,6 @@ async def ask_password(update: Update, ctx):
                                 reply_markup=InlineKeyboardMarkup(keydoard))
 
     return PASSWORD
-
 
 async def generate_password(update: Update, ctx):
     query = update.callback_query
@@ -124,7 +123,6 @@ async def generate_password(update: Update, ctx):
 
     return TYPE
 
-
 async def skip_password(update: Update, ctx):
     query = update.callback_query
     await query.answer()
@@ -138,7 +136,6 @@ async def skip_password(update: Update, ctx):
     await query.edit_message_text('Хорошо. Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
 
     return TYPE
-
 
 async def set_password(update: Update, ctx):
     metadata = get_chat_metadata(update.message.chat_id)
@@ -158,24 +155,6 @@ async def set_password(update: Update, ctx):
     await update.message.reply_text('Теперь выберите тип анализа.', reply_markup=InlineKeyboardMarkup(keyboard))
 
     return TYPE
-
-
-auto_instruction = '''
-В автоматическом режиме вам необходимо:
-1. Отправить примеры голосов спикеров.
-    !!ВАЖНО!! - Укажите имя спикера в описании к прилагаемому файлу.
-    !!ВАЖНО!! - Если у файлов не будет описания то названия аудио-файлов будут считаться именами спикеров.
-2. После загрузки всех аудио-файлов нажать на подсказку "Сохранить выбор".
-3. Далее следовать инструкциям.
-'''
-manual_instruction = '''
-В ручном режиме вам необходимо:
-1. Отправить аудио-файл который будет проанализован.
-2. После обработки, вам придет предварительный отчет, где имена спикеров будут иметь вид "SPEAKER_0".
-3. Вручную ввести имена спикеров.
-4. Далее следовать инструкциям.
-'''
-
 
 async def get_type(update: Update, ctx):
     query = update.callback_query
@@ -197,7 +176,6 @@ async def get_type(update: Update, ctx):
     await query.message.chat.send_message(manual_instruction)
     return MAIN_AUDIO
 
-
 async def get_speakers(update: Update, ctx):
     file_data = update.message.document or update.message.audio or update.message.voice
 
@@ -218,12 +196,10 @@ async def get_speakers(update: Update, ctx):
 
     return SPEAKERS
 
-
 async def get_speakers_done(update: Update, ctx):
     await update.message.reply_text('Примеры голосов спикеров сохранены!')
     await update.message.reply_text('Теперь отправьте аудио-файл для обработки...')
     return MAIN_AUDIO
-
 
 async def get_main_audio(update: Update, ctx):
     if update.message.voice is not None:
@@ -251,10 +227,10 @@ async def get_main_audio(update: Update, ctx):
     metadata.pop('password', None)
 
     if metadata['type'] == 1:
-        channel.basic_publish('', 'auto_analyze', json.dumps(metadata))
+        channel.default_exchange.publish(json.dumps(metadata).encode(), 'auto_analyze')
         return ConversationHandler.END
     
-    channel.basic_publish('', 'manual_analyze', json.dumps(metadata))
+    channel.default_exchange.publish(json.dumps(metadata).encode(), 'manual_analyze')
     return WAIT_REPLY
 
 async def accept_response(update: Update, ctx):
@@ -292,7 +268,6 @@ async def accept_response(update: Update, ctx):
 
     await update.message.reply_text('Введите имя для SPEAKER_00.')
     return SPEAKER_NAMES
-
 
 async def get_speakers_names(update: Update, ctx):
     temp_directory = f'./temp/{update.message.chat_id}'
@@ -336,7 +311,7 @@ async def get_speakers_names(update: Update, ctx):
             'transcribed_text': srt_file.read(),
         }
 
-        channel.basic_publish('', 'transcribed_text_upload', json.dumps(request_body))
+        channel.default_exchange.publish(json.dumps(request_body).encode(), 'transcribed_text_upload')
 
     return ConversationHandler.END
 
@@ -361,19 +336,15 @@ ID Запроса {record.id}:
     
     await update.message.reply_text('Вы еще не сделали ни одного запроса.')
 
+async def main():
+    global channel
 
-if __name__ == "__main__":
-    # RabbitMQ
+    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, client_properties={'heartbeat': 5000})
+    channel = await connection.channel()
 
-    credentials = pika.PlainCredentials('user', 'password')
-    connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials, heartbeat=5000))
-    channel = connection.channel()
-
-    channel.queue_declare(queue='auto_analyze')
-    channel.queue_declare(queue='manual_analyze')
-    channel.queue_declare(queue='transcribed_text_upload')
-
-    #TelegramBOT
+    await channel.declare_queue('auto_analyze')
+    await channel.declare_queue('manual_analyze')
+    await channel.declare_queue('transcribed_text_upload')
 
     application = ApplicationBuilder()
     application.token(API_KEY)
@@ -423,4 +394,10 @@ if __name__ == "__main__":
 
     application.add_handler(CommandHandler('stats', stats))
     application.add_handler(conv_handler)
-    application.run_polling()
+    try:
+        application.run_polling()
+    finally:
+        await connection.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
