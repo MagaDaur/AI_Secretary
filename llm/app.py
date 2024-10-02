@@ -100,6 +100,8 @@ async def main():
     async with connection:
         channel = await connection.channel()
 
+        await channel.set_qos(10)
+
         telegram_text_upload = await channel.declare_queue('telegram_text_upload')
         transcribed_text_upload = await channel.declare_queue('transcribed_text_upload')
 
