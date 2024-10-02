@@ -87,10 +87,10 @@ async def llm_callback(message):
     RemoveDirectory(f'./temp/{data['chat_id']}/', ignore_errors=True)
 
 async def main():
-    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, client_properties={'heartbeat': 5000})
+    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, heartbeat=5000)
     channel = await connection.channel()
 
-    channel.set_qos(10)
+    await channel.set_qos(10)
 
     asr_to_handler = await channel.declare_queue('asr_to_handler')
     telegram_text_upload = await channel.declare_queue('telegram_text_upload')

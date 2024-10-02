@@ -11,9 +11,11 @@ from whisperx import load_align_model, align, assign_word_speakers
 import time
 import pandas as pd
 
-import pika
+import aio_pika
+from aio_pika import Message
 import base64
 import json
+import asyncio
 
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -23,19 +25,16 @@ load_dotenv()
 import os
 os.environ['HF_HOME'] = '/models'
 
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
+
 HF_TOKEN = getenv('HF_TOKEN')
+RABBITMQ_HOST = os.getenv('RABBITMQ_HOST')
+RABBITMQ_LOGIN = os.getenv('RABBITMQ_DEFAULT_USER')
+RABBITMQ_PASSWORD = os.getenv('RABBITMQ_DEFAULT_PASS')
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 logging.info(f"### Device: {DEVICE} ###")
-
-credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=1800))
-channel = connection.channel()
-
-channel.queue_declare(queue='auto_analyze')
-channel.queue_declare(queue='manual_analyze')
-channel.queue_declare(queue='telegram_text_upload')
 
 def transcribe_audio(audio_file_path, initial_prompt):
     model = whisper.load_model("large-v2")
@@ -205,8 +204,8 @@ def get_file_bytes_as_b64(file_path: str):
         return base64.b64encode(file.read()).decode()
 
 
-def verify_audio(ch, method, properties, body):
-    input_data = json.loads(body)
+async def verify_audio(message):
+    input_data = json.loads(message.body)
 
     audio_file_path = f"/tmp/{input_data['audio']['filename']}"
     with open(audio_file_path, "wb") as buffer:
@@ -225,8 +224,6 @@ def verify_audio(ch, method, properties, body):
     output_srt = f"/tmp/{input_data['audio']['filename']}.srt"
     generate_srt(result['transcription'], output_file=output_srt)
 
-    unique_speakers = count_unique_speakers(pd.DataFrame(result['transcription']))
-
     with open(output_srt, 'r') as srt_file:
 
         data = {
@@ -235,10 +232,10 @@ def verify_audio(ch, method, properties, body):
             'file_name': input_data['audio']['filename'],
         }
 
-        channel.basic_publish('', 'transcribed_text_upload', json.dumps(data))
+        await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'transcribed_text_upload')
 
-def process_audio(ch, method, properties, body):
-    input_data = json.loads(body)
+async def process_audio(message):
+    input_data = json.loads(message.body)
 
     file_location = f"./temp_{input_data['audio']['filename']}"
 
@@ -264,11 +261,24 @@ def process_audio(ch, method, properties, body):
     data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers,
             "srt_file": get_file_bytes_as_b64(output_srt)}
 
-    channel.basic_publish('', 'asr_to_handler', json.dumps(data))
+    await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'asr_to_handler')
 
+async def main():
+    global channel
+
+    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, heartbeat=5000)
+    async with connection:
+        channel = await connection.channel()
+
+        await channel.set_qos(10)
+
+        auto_analyze = await channel.declare_queue('auto_analyze')
+        manual_analyze = await channel.declare_queue('manual_analyze')
+
+        await auto_analyze.consume(verify_audio, no_ack=True)
+        await manual_analyze.consume(process_audio, no_ack=True)
+
+        await asyncio.Future()
 
 if __name__ == "__main__":
-    channel.basic_consume(queue='auto_analyze', auto_ack=True, on_message_callback=verify_audio)
-    channel.basic_consume(queue='manual_analyze', auto_ack=True, on_message_callback=process_audio)
-
-    channel.start_consuming()
+    asyncio.run(main())

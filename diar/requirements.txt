@@ -7,3 +7,4 @@ concurrent-log-handler
 python-dotenv
 pika
 pandas
+aio-pika==9.4.3

@@ -25,6 +25,7 @@ from shutil import rmtree as RemoveDirectory
 from subtitle_parser import SrtParser
 from pydub import AudioSegment
 from local_lib import *
+from aio_pika import Message
 
 import aio_pika
 import base64
@@ -111,7 +112,7 @@ async def generate_password(update: Update, ctx):
     metadata['password'] = password
     set_chat_metadata(chat_id, metadata)
 
-    await query.edit_message_text(f'Отлично\! Ваш пароль: `{password}`', parse_mode='MarkdownV2')
+    await query.edit_message_text(f'Ваш пароль: `{password}`', parse_mode='MarkdownV2')
 
     keyboard = [
         [
@@ -227,10 +228,10 @@ async def get_main_audio(update: Update, ctx):
     metadata.pop('password', None)
 
     if metadata['type'] == 1:
-        channel.default_exchange.publish(json.dumps(metadata).encode(), 'auto_analyze')
+        await channel.default_exchange.publish(Message(json.dumps(metadata).encode()), 'auto_analyze')
         return ConversationHandler.END
     
-    channel.default_exchange.publish(json.dumps(metadata).encode(), 'manual_analyze')
+    await channel.default_exchange.publish(Message(json.dumps(metadata).encode()), 'manual_analyze')
     return WAIT_REPLY
 
 async def accept_response(update: Update, ctx):
@@ -311,7 +312,7 @@ async def get_speakers_names(update: Update, ctx):
             'transcribed_text': srt_file.read(),
         }
 
-        channel.default_exchange.publish(json.dumps(request_body).encode(), 'transcribed_text_upload')
+        await channel.default_exchange.publish(Message(json.dumps(request_body).encode()), 'transcribed_text_upload')
 
     return ConversationHandler.END
 
@@ -339,65 +340,75 @@ ID Запроса {record.id}:
 async def main():
     global channel
 
-    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, client_properties={'heartbeat': 5000})
-    channel = await connection.channel()
+    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, heartbeat=5000)
+    
+    async with connection:
+        channel = await connection.channel()
 
-    await channel.declare_queue('auto_analyze')
-    await channel.declare_queue('manual_analyze')
-    await channel.declare_queue('transcribed_text_upload')
+        await channel.declare_queue('auto_analyze')
+        await channel.declare_queue('manual_analyze')
+        await channel.declare_queue('transcribed_text_upload')
 
-    application = ApplicationBuilder()
-    application.token(API_KEY)
-    application.base_url(f'http://{TELEGRAM_HOST}:8081/bot')
-    application.local_mode(True)
-    application.read_timeout(30)
-    application.write_timeout(30)
+        application = ApplicationBuilder()
+        application.token(API_KEY)
+        application.base_url(f'http://{TELEGRAM_HOST}:8081/bot')
+        application.local_mode(True)
+        application.read_timeout(30)
+        application.write_timeout(30)
 
-    application = application.build()
+        application = application.build()
 
-    conv_handler = ConversationHandler(
-        entry_points=[
-            CommandHandler('start', start),
-            MessageHandler(filters.Regex('^Start$'), start),
-        ],
-        states={
-            START: [
-                MessageHandler(filters.Regex('^Запуск$'), ask_password),
+        conv_handler = ConversationHandler(
+            entry_points=[
+                CommandHandler('start', start),
+                MessageHandler(filters.Regex('^Start$'), start),
             ],
-            PASSWORD: [
-                CallbackQueryHandler(generate_password, pattern='^1$'),
-                CallbackQueryHandler(skip_password, pattern='^2$'),
-                MessageHandler(filters.TEXT, set_password),
+            states={
+                START: [
+                    MessageHandler(filters.Regex('^Запуск$'), ask_password),
+                ],
+                PASSWORD: [
+                    CallbackQueryHandler(generate_password, pattern='^1$'),
+                    CallbackQueryHandler(skip_password, pattern='^2$'),
+                    MessageHandler(filters.TEXT, set_password),
+                ],
+                TYPE: [
+                    CallbackQueryHandler(get_type),
+                ],
+                SPEAKERS: [
+                    MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
+                    MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
+                ],
+                MAIN_AUDIO: [
+                    MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
+                ],
+                WAIT_REPLY: [
+                    MessageHandler(filters.Regex('^Продолжить$'), accept_response)
+                ],
+                SPEAKER_NAMES: [
+                    MessageHandler(filters.TEXT, get_speakers_names),
+                ],
+            },
+            fallbacks=[
+                CommandHandler("start", start),
+                MessageHandler(filters.Regex('^Start$'), start),
             ],
-            TYPE: [
-                CallbackQueryHandler(get_type),
-            ],
-            SPEAKERS: [
-                MessageHandler(filters.ATTACHMENT | filters.AUDIO, get_speakers),
-                MessageHandler(filters.Regex('^Сохранить выбор$'), get_speakers_done)
-            ],
-            MAIN_AUDIO: [
-                MessageHandler(filters.ATTACHMENT | filters.AUDIO | filters.VOICE, get_main_audio),
-            ],
-            WAIT_REPLY: [
-                MessageHandler(filters.Regex('^Продолжить$'), accept_response)
-            ],
-            SPEAKER_NAMES: [
-                MessageHandler(filters.TEXT, get_speakers_names),
-            ],
-        },
-        fallbacks=[
-            CommandHandler("start", start),
-            MessageHandler(filters.Regex('^Start$'), start),
-        ],
-    )
+        )
 
-    application.add_handler(CommandHandler('stats', stats))
-    application.add_handler(conv_handler)
-    try:
-        application.run_polling()
-    finally:
-        await connection.close()
+        async with application:
+            application.add_handler(CommandHandler('stats', stats))
+            application.add_handler(conv_handler)
+
+            await application.start()
+            await application.updater.start_polling()
+
+            try:
+                await asyncio.Future()
+            except KeyboardInterrupt as e:
+                pass
+
+            await application.updater.stop()
+            await application.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())

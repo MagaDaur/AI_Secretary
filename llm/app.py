@@ -3,9 +3,10 @@ from os import getenv
 import json
 import requests
 
-import pika
+import asyncio
+import aio_pika
+from aio_pika import Message
 from dotenv import load_dotenv
-from pika.adapters.blocking_connection import BlockingChannel
 
 from prompts import PROMPTS, Prompt
 
@@ -16,6 +17,9 @@ logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 IAM_TOKEN = getenv('IAM_TOKEN')
+RABBITMQ_HOST = getenv('RABBITMQ_HOST')
+RABBITMQ_LOGIN = getenv('RABBITMQ_DEFAULT_USER')
+RABBITMQ_PASSWORD = getenv('RABBITMQ_DEFAULT_PASS')
 
 url = 'https://llm.api.cloud.yandex.net/foundationModels/v1/completion'
 headers = {
@@ -23,21 +27,13 @@ headers = {
     'Content-Type': 'application/json'
 }
 
-credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host='rabbitmq-server', credentials=credentials, heartbeat=1800))
-channel = connection.channel()
-
-channel.queue_declare(queue='transcribed_text_upload')
-
-
 def request_chunking(request_str, chunk_size=3500):
     return [request_str[i:i + chunk_size] for i in range(0, len(request_str), chunk_size)]
 
 
-def callback(ch: BlockingChannel, method, properties, body):
+async def callback(message):
     logging.info("GPT GENERATION")
-    data = json.loads(body)
+    data = json.loads(message.body)
     answers = []
 
     for prompt_components in PROMPTS:
@@ -95,10 +91,21 @@ def callback(ch: BlockingChannel, method, properties, body):
     }
     logging.info(answers)
     logging.info("END OF GPT GENERATION")
-    channel.basic_publish('', 'telegram_text_upload', json.dumps(body))
+    await channel.default_exchange.publish(Message(json.dumps(body).encode()), 'telegram_text_upload')
 
+async def main():
+    global channel
+
+    connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, heartbeat=5000)
+    async with connection:
+        channel = await connection.channel()
+
+        telegram_text_upload = await channel.declare_queue('telegram_text_upload')
+        transcribed_text_upload = await channel.declare_queue('transcribed_text_upload')
+
+        await transcribed_text_upload.consume(callback, no_ack=True)
+
+        await asyncio.Future()
 
 if __name__ == "__main__":
-    channel.basic_consume(queue='transcribed_text_upload', auto_ack=True, on_message_callback=callback)
-
-    channel.start_consuming()
+    asyncio.run(main())

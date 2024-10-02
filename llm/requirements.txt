@@ -3,3 +3,4 @@ langchain-core
 langchain
 requests
 python-dotenv
+aio-pika==9.4.3
