@@ -97,8 +97,8 @@ async def main():
     asr_to_handler = await channel.declare_queue('asr_to_handler')
     telegram_text_upload = await channel.declare_queue('telegram_text_upload')
 
-    await telegram_text_upload.consume(llm_callback, no_ack=True)
-    await asr_to_handler.consume(asr_callback, no_ack=True)
+    await telegram_text_upload.consume(llm_callback)
+    await asr_to_handler.consume(asr_callback)
     
     await asyncio.Future()
 

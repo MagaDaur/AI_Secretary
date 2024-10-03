@@ -106,7 +106,7 @@ async def main():
         telegram_text_upload = await channel.declare_queue('telegram_text_upload')
         transcribed_text_upload = await channel.declare_queue('transcribed_text_upload')
 
-        await transcribed_text_upload.consume(callback, no_ack=True)
+        await transcribed_text_upload.consume(callback)
 
         await asyncio.Future()
 

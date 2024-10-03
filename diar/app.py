@@ -273,13 +273,13 @@ async def main():
     async with connection:
         channel = await connection.channel()
 
-        await channel.set_qos(10)
+        await channel.set_qos(prefetch_count=10)
 
         auto_analyze = await channel.declare_queue('auto_analyze')
         manual_analyze = await channel.declare_queue('manual_analyze')
 
-        await auto_analyze.consume(verify_audio, no_ack=True)
-        await manual_analyze.consume(process_audio, no_ack=True)
+        await auto_analyze.consume(verify_audio)
+        await manual_analyze.consume(process_audio)
 
         await asyncio.Future()
 
