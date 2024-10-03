@@ -6,7 +6,6 @@ from pydub import AudioSegment
 from concurrent.futures import ThreadPoolExecutor
 from whisperx.diarize import DiarizationPipeline
 from speechbrain.inference.speaker import SpeakerRecognition
-import whisperx
 from whisperx import load_align_model, align, assign_word_speakers
 import time
 import pandas as pd
@@ -22,6 +21,8 @@ logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 
+import whisperx
+
 import os
 os.environ['HF_HOME'] = '/models'
 
@@ -36,21 +37,16 @@ RABBITMQ_PASSWORD = os.getenv('RABBITMQ_DEFAULT_PASS')
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 logging.info(f"### Device: {DEVICE} ###")
 
-def transcribe_audio(audio_file_path, initial_prompt):
-    model = whisper.load_model("large-v2")
-    result = model.transcribe(audio_file_path,initial_prompt=initial_prompt)
-    return result
+async def transcribe_audio(audio_file):
+    loop = asyncio.get_event_loop()
 
-def transcribe_audio(audio_file, model_name="large-v2", compute_type="float16"):
     logging.info(f"### TRANSCRIBATION STARTED ###")
 
-    model = whisperx.load_model(model_name, device=DEVICE, compute_type=compute_type, language='ru')
-    transcription_result = model.transcribe(audio_file)
+    transcription_result = await loop.run_in_executor(None, model.transcribe, audio_file)
 
     logging.info(f"### TRANSCRIBATION ENDED ###")
 
     return transcription_result
-
 
 def extract_audio_segments(audio_file, diarize_df):
     audio = AudioSegment.from_file(audio_file)
@@ -245,7 +241,8 @@ async def process_audio(message):
             file_object.write(base64.b64decode(input_data['audio']['buffer']))
 
         logging.info("### Started handling audio ###")
-        script = transcribe_audio(file_location)
+
+        script = await transcribe_audio(file_location)
 
         diarize_df = perform_diarization(file_location)
 
@@ -268,8 +265,14 @@ async def process_audio(message):
 
 async def main():
     global channel
+    global model
 
     connection = await aio_pika.connect(host=RABBITMQ_HOST, login=RABBITMQ_LOGIN, password=RABBITMQ_PASSWORD, heartbeat=5000)
+
+    logging.info(f'### LOADING MODEL ###')
+    model = whisperx.load_model("large-v2", device=DEVICE, compute_type="float16", language='ru')
+    logging.info(f'### MODEL HAS BEEN CACHED ###')
+
     async with connection:
         channel = await connection.channel()
 
