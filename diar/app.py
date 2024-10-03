@@ -205,64 +205,66 @@ def get_file_bytes_as_b64(file_path: str):
 
 
 async def verify_audio(message):
-    input_data = json.loads(message.body)
+    async with message.process():
+        input_data = json.loads(message.body)
 
-    audio_file_path = f"/tmp/{input_data['audio']['filename']}"
-    with open(audio_file_path, "wb") as buffer:
-        buffer.write(base64.b64decode(input_data['audio']['buffer']))
+        audio_file_path = f"/tmp/{input_data['audio']['filename']}"
+        with open(audio_file_path, "wb") as buffer:
+            buffer.write(base64.b64decode(input_data['audio']['buffer']))
 
-    reference_names = input_data['members']
-    reference_file_paths = []
-    for ref_file in input_data['speakers']:
-        ref_file_path = f"/tmp/{ref_file['filename']}"
-        with open(ref_file_path, "wb") as buffer:
-            buffer.write(base64.b64decode(ref_file['buffer']))
-        reference_file_paths.append(ref_file_path)
+        reference_names = input_data['members']
+        reference_file_paths = []
+        for ref_file in input_data['speakers']:
+            ref_file_path = f"/tmp/{ref_file['filename']}"
+            with open(ref_file_path, "wb") as buffer:
+                buffer.write(base64.b64decode(ref_file['buffer']))
+            reference_file_paths.append(ref_file_path)
 
-    result = main(audio_file_path, reference_file_paths, reference_names)
+        result = main(audio_file_path, reference_file_paths, reference_names)
 
-    output_srt = f"/tmp/{input_data['audio']['filename']}.srt"
-    generate_srt(result['transcription'], output_file=output_srt)
+        output_srt = f"/tmp/{input_data['audio']['filename']}.srt"
+        generate_srt(result['transcription'], output_file=output_srt)
 
-    with open(output_srt, 'r') as srt_file:
+        with open(output_srt, 'r') as srt_file:
 
-        data = {
-            'chat_id': input_data['chat_id'],
-            'transcribed_text': srt_file.read(),
-            'file_name': input_data['audio']['filename'],
-        }
+            data = {
+                'chat_id': input_data['chat_id'],
+                'transcribed_text': srt_file.read(),
+                'file_name': input_data['audio']['filename'],
+            }
 
-        await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'transcribed_text_upload')
+            await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'transcribed_text_upload')
 
 async def process_audio(message):
-    input_data = json.loads(message.body)
+    async with message.process():
+        input_data = json.loads(message.body)
 
-    file_location = f"./temp_{input_data['audio']['filename']}"
+        file_location = f"./temp_{input_data['audio']['filename']}"
 
-    with open(file_location, "wb+") as file_object:
-        file_object.write(base64.b64decode(input_data['audio']['buffer']))
+        with open(file_location, "wb+") as file_object:
+            file_object.write(base64.b64decode(input_data['audio']['buffer']))
 
-    logging.info("### Started handling audio ###")
-    script = transcribe_audio(file_location)
+        logging.info("### Started handling audio ###")
+        script = transcribe_audio(file_location)
 
-    diarize_df = perform_diarization(file_location)
+        diarize_df = perform_diarization(file_location)
 
-    transcribed_text = align_speakers_to_text(script, diarize_df, file_location)
+        transcribed_text = align_speakers_to_text(script, diarize_df, file_location)
 
-    unique_speakers = count_unique_speakers(diarize_df)
-    speaker_mapping = {f"speaker{i + 1}": f"speaker{i + 1}" for i in range(unique_speakers)}
+        unique_speakers = count_unique_speakers(diarize_df)
+        speaker_mapping = {f"speaker{i + 1}": f"speaker{i + 1}" for i in range(unique_speakers)}
 
-    for segment in transcribed_text:
-        speaker_id = segment["speaker"]
-        segment["speaker"] = speaker_mapping.get(speaker_id, f"Speaker {speaker_id}")
+        for segment in transcribed_text:
+            speaker_id = segment["speaker"]
+            segment["speaker"] = speaker_mapping.get(speaker_id, f"Speaker {speaker_id}")
 
-    output_srt = f"./{input_data['audio']['filename']}.srt"
-    generate_srt(transcribed_text, output_file=output_srt)
+        output_srt = f"./{input_data['audio']['filename']}.srt"
+        generate_srt(transcribed_text, output_file=output_srt)
 
-    data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers,
-            "srt_file": get_file_bytes_as_b64(output_srt)}
+        data = {'chat_id': input_data['chat_id'], "unique_speakers": unique_speakers,
+                "srt_file": get_file_bytes_as_b64(output_srt)}
 
-    await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'asr_to_handler')
+        await channel.default_exchange.publish(Message(json.dumps(data).encode()), 'asr_to_handler')
 
 async def main():
     global channel
