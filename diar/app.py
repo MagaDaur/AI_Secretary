@@ -242,6 +242,7 @@ async def process_audio(message):
     with open(file_location, "wb+") as file_object:
         file_object.write(base64.b64decode(input_data['audio']['buffer']))
 
+    logging.info("### Started handling audio ###")
     script = transcribe_audio(file_location)
 
     diarize_df = perform_diarization(file_location)
