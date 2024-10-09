@@ -26,6 +26,7 @@ from subtitle_parser import SrtParser
 from pydub import AudioSegment
 from local_lib import *
 from aio_pika import Message
+from pathlib import Path
 
 import aio_pika
 import base64
@@ -145,7 +146,7 @@ async def set_password(update: Update, ctx):
 
     await update.message.chat.delete_message(update.message.message_id)
 
-    await update.message.reply_text(f'Отлично\! Ваш пароль: ||{update.message.text}||', parse_mode='MarkdownV2')
+    await update.message.reply_text(f'Ваш пароль: `{update.message.text}`', parse_mode='MarkdownV2')
 
     keyboard = [
         [
@@ -305,14 +306,14 @@ async def get_speakers_names(update: Update, ctx):
     RemoveDirectory(f'{temp_directory}/samples')
     
     await update.message.reply_text('⏳')
-    with open(f'{temp_directory}/speakers.srt', 'r') as srt_file:
-        request_body = {
-            'chat_id': update.message.chat_id,
-            'file_name': metadata['audio']['filename'],
-            'transcribed_text': srt_file.read(),
-        }
 
-        await channel.default_exchange.publish(Message(json.dumps(request_body).encode()), 'transcribed_text_upload')
+    request_body = {
+        'chat_id': update.message.chat_id,
+        'file_name': metadata['audio']['filename'],
+        'transcribed_text': get_srt_data(f'{temp_directory}/speakers.srt'),
+    }
+
+    await channel.default_exchange.publish(Message(json.dumps(request_body).encode()), 'transcribed_text_upload')
 
     return ConversationHandler.END
 

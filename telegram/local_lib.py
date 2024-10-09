@@ -3,6 +3,7 @@ import base64
 from os import listdir
 import secrets
 import string
+import subtitle_parser
 
 BASE_METADATA = {
     'speakers': [],
@@ -49,3 +50,35 @@ def seconds_to_time(total_seconds):
     seconds = total_seconds % 60
 
     return f"{hours:02}:{minutes:02}:{seconds:02}"
+
+def get_srt_data(srt_filepath, timeout: int = 10000):
+    with open(srt_filepath, 'r') as srt_file:
+        srt = subtitle_parser.SrtParser(srt_file)
+        srt.parse()
+
+    data = []
+
+    for subtitle in srt.subtitles:
+        speaker, text = subtitle.text.split(':', 1)
+        prev = data[-1] if len(data) > 0 else None
+
+        if prev is not None and speaker == prev['speaker'] and subtitle.start - prev['end'] < timeout:
+            prev['end'] = subtitle.end
+            prev['text'] = prev['text'] + text
+            continue
+
+        data.append({
+            'speaker': speaker,
+            'start': subtitle.start,
+            'end': subtitle.end,
+            'text': text
+        })
+
+    text = ''
+    for subtitle in data:
+        start, end = subtitle['start'] // 1000, subtitle['end'] // 1000
+        text += f'{subtitle["speaker"]}\n'
+        text += f'Time: {seconds_to_time(start)} --> {seconds_to_time(end)}\n'
+        text += f'Text: {subtitle["text"]}\n\n'
+
+    return text
