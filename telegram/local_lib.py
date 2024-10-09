@@ -51,8 +51,8 @@ def seconds_to_time(total_seconds):
 
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-def get_srt_data(srt_filepath, timeout: int = 10000):
-    with open(srt_filepath, 'r') as srt_file:
+def get_srt_data(srt_filepath, timeout: int = 10000, chunk_size: int = 7000):
+    with open(srt_filepath, 'r', encoding='utf-8') as srt_file:
         srt = subtitle_parser.SrtParser(srt_file)
         srt.parse()
 
@@ -62,7 +62,7 @@ def get_srt_data(srt_filepath, timeout: int = 10000):
         speaker, text = subtitle.text.split(':', 1)
         prev = data[-1] if len(data) > 0 else None
 
-        if prev is not None and speaker == prev['speaker'] and subtitle.start - prev['end'] < timeout:
+        if prev is not None and speaker == prev['speaker'] and subtitle.start - prev['end'] < timeout and len(prev['text']) + len(subtitle.text) < chunk_size:
             prev['end'] = subtitle.end
             prev['text'] = prev['text'] + text
             continue
@@ -75,10 +75,24 @@ def get_srt_data(srt_filepath, timeout: int = 10000):
         })
 
     text = ''
+    chunks = []
+    unfinished = False
     for subtitle in data:
         start, end = subtitle['start'] // 1000, subtitle['end'] // 1000
-        text += f'{subtitle["speaker"]}\n'
-        text += f'Time: {seconds_to_time(start)} --> {seconds_to_time(end)}\n'
-        text += f'Text: {subtitle["text"]}\n\n'
 
-    return text
+        temp_str = f'{subtitle["speaker"]}\n'
+        temp_str += f'Time: {seconds_to_time(start)} --> {seconds_to_time(end)}\n'
+        temp_str += f'Text: {subtitle["text"]}\n\n'
+
+        if len(text) + len(temp_str) <= chunk_size:
+            unfinished = True
+            text += temp_str
+        else:
+            unfinished = False
+            chunks.append(text)
+            text = temp_str
+
+    if unfinished:
+        chunks.append(text)
+
+    return chunks
