@@ -1,5 +1,6 @@
 from os import getenv
 
+import time
 import json
 import requests
 
@@ -27,7 +28,7 @@ headers = {
     'Content-Type': 'application/json'
 }
 
-def request_chunking(request_str, chunk_size=3500):
+def request_chunking(request_str, chunk_size=4_000):
     return [request_str[i:i + chunk_size] for i in range(0, len(request_str), chunk_size)]
 
 
@@ -38,16 +39,10 @@ async def callback(message):
         answers = []
 
         for prompt_components in PROMPTS:
-            prompt_chuncks = request_chunking(data['transcribed_text'])
+            chunks = data['transcribed_text']
             chunck_response_list = []
 
-            for chunk in prompt_chuncks:
-                # prompt = Prompt(
-                #     llm_instructions=prompt_components["llm_instructions"],
-                #     context=data['transcribed_text'],
-                #     question=prompt_components["question"]
-                # )
-
+            for chunk in chunks:
                 request_data = {
                     "modelUri": "gpt://b1glrfrec5q420bjhi7n/yandexgpt/latest",
                     "completionOptions": {
@@ -66,7 +61,7 @@ async def callback(message):
                         }
                     ]
                 }
-                # logging.info(f"Text length: {len(prompt.prompt)}")
+
                 response = requests.post(url, headers=headers, json=request_data)
 
                 if response.status_code == 200:
