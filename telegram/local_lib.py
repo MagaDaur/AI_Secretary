@@ -64,7 +64,7 @@ def get_srt_data(srt_filepath, timeout: int = 10000, chunk_size: int = 7000):
 
         if prev is not None and speaker == prev['speaker'] and subtitle.start - prev['end'] < timeout and len(prev['text']) + len(subtitle.text) < chunk_size:
             prev['end'] = subtitle.end
-            prev['text'] = prev['text'] + text
+            prev['text'] = prev['text'] + ' ' + text
             continue
 
         data.append({

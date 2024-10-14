@@ -68,6 +68,8 @@ async def llm_callback(message):
 
         logging.info(data)
 
+        await bot.send_message(metadata['chat_id'], message.body)
+
         neofic_pdf_filepath = neofic.create_pdf(data)
         neofic_docx_filepath = neofic_word.create_docx(data)
 

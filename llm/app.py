@@ -69,7 +69,7 @@ async def callback(message):
                     logging.info(response_text)
 
                     try:
-                        json_list = json.loads(response_text.replace("'", '"'))
+                        json_list = json.loads(response_text)
                     except json.decoder.JSONDecodeError as e:
                         logging.info(f"json.decoder.JSONDecodeError: \n{response_text}")
                         json_list = []
