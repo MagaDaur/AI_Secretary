@@ -44,7 +44,10 @@ asr_caption = '''
 async def asr_callback(message):
     async with message.process():
         data = json.loads(message.body)
-        
+
+        with open(f'./temp/{data['chat_id']}/speakers.srt', 'wb') as srt_file:
+            srt_file.write(base64.b64decode(data['srt_file']))
+
         await bot.send_message(data['chat_id'], text=asr_caption, reply_markup=ReplyKeyboardMarkup([['Продолжить']], one_time_keyboard=True, resize_keyboard=True))
             
         metadata = get_chat_metadata(data['chat_id'])
@@ -60,7 +63,7 @@ async def llm_callback(message):
         llm_response = fix_llm_respond(data['transcribed_text'])
         
         ofic_path = f'./temp/{data["chat_id"]}/ofic.pdf'
-        ofic.create_pdf(llm_response, ofic_path, metadata['password'])
+        ofic.create_pdf(llm_response, ofic_path, metadata.get('password'))
         with open(ofic_path, 'rb') as ofic_pdf:
             await bot.send_document(data['chat_id'], ofic_pdf, caption='Офицальный PDF Отчет', filename='Протокол.pdf')
 

@@ -124,5 +124,5 @@ def fix_llm_respond(data):
         assignment['Описание поручения'] = assignment.get('Описание поручения', 'Описание поручениян не определено').capitalize()
         assignment['Срок выполнения'] = assignment.get('Срок выполнения', 'Не определен')
 
-    return [question, assignments]
+    return [questions, assignments]
         
