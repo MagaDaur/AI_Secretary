@@ -2,7 +2,6 @@ from fpdf import FPDF, XPos, YPos, Align
 from datetime import datetime
 import time
 from pypdf import PdfReader, PdfWriter
-import os
 
 roman_digits = {
     1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V',
@@ -67,7 +66,7 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
     year, mon, day, _, _, _, _, _, _ = time.localtime()
 
     pdf.cell(190, 10, text=f'№______________', align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.cell(190, 10, text=f"{day} {months[mon + 1]} {year} г.", align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(190, 10, text=f"{day} {months[mon - 1]} {year} г.", align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
     pdf.set_font('DejaVu', 'B', 14)
     pdf.cell(190, 10, text='ПЕРЕЧЕНЬ ПОРУЧЕНИЙ', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -92,8 +91,6 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
         writer = PdfWriter()
         writer.append_pages_from_reader(reader)
         writer.encrypt(password)
-
-        os.remove(fp)
 
         with open(fp, 'wb') as out_file:
             writer.write(out_file)
