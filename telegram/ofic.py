@@ -23,7 +23,7 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
     members = set()
     for question in questions:
         for member in question['Участники обсуждения']:
-            members.add(members)
+            members.add(member)
     members = list(members)
 
     pdf = FPDF()
