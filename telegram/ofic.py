@@ -1,122 +1,99 @@
-from fpdf import FPDF
-import datetime
-import PyPDF2
-from local_lib import get_chat_metadata
-import logging
+from fpdf import FPDF, XPos, YPos, Align
+from datetime import datetime
+import time
+from pypdf import PdfReader, PdfWriter
+import os
 
-logging.basicConfig(level=logging.INFO)
+roman_digits = {
+    1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V',
+    6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X',
+    11: 'XI', 12: 'XII', 13: 'XIII', 14: 'XIV', 15: 'XV',
+    16: 'XVI', 17: 'XVII', 18: 'XVIII', 19: 'XIX', 20: 'XX'
+}
 
-months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-            'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
-voc = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
-        6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
-        11: "XI", 12: "XII", 13: "XIII", 14: "XIV", 15: "XV",
-        16: "XVI", 17: "XVII", 18: "XVIII", 19: "XIX", 20: "XX"}
+months = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+]
 
+def create_pdf(data: list[list[dict]], fp: str, password: str = None):
+    questions = data[0]
+    assignments = data[1]
 
-def generate_protocol(data, theme="Тема совещания", count_of_members=3):
+    members = set()
+    for question in questions:
+        for member in members:
+            members.add(members)
+    members = list(members)
+
     pdf = FPDF()
+
+    pdf.add_font('DejaVu', '', './fonts/DejaVuSans.ttf')
+    pdf.add_font('DejaVu', 'B', './fonts/DejaVuSans-Bold.ttf')
+    pdf.add_font('DejaVu', 'I', './fonts/DejaVuSans-Oblique.ttf')
+    pdf.add_font('DejaVu', 'BI', './fonts/DejaVuSans-BoldOblique.ttf')
+
     pdf.add_page()
 
-    pdf.add_font("DejaVu", "", "./fonts/DejaVuSans.ttf", uni=True)
-    pdf.add_font("DejaVu", "B", "./fonts/DejaVuSans-Bold.ttf", uni=True)
-    pdf.set_font('DejaVu', "B", 12)
+    pdf.set_font('DejaVu', 'B', 14)
+    pdf.set_y(20)
+    pdf.cell(190, 10, text='ПРОТОКОЛ СОВЕЩАНИЯ', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(190, 10, text='Москва', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(190, 10, text=f"от {datetime.today().strftime('%d.%m.%Y')} №______________", align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
-    line_height = pdf.font_size * 2.5
+    pdf.set_font('DejaVu', '', 14)
+    pdf.cell(190, 10, text='Присутствовали:', align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    for member in members:
+        pdf.cell(190, 7, text='  ' + member, align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    date=datetime.datetime.now()
-    cur=str(date.day)+"."+str(date.month)+"."+str(date.year)
+    for i in range(len(questions)):
+        question = questions[i]
 
-    resume = data['transcribed_text']
+        pdf.cell(190, 10, text=f'{roman_digits[i + 1]}.    {question['Вопрос обсуждения']}.', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.multi_cell(190, 10, text=f'({', '.join(question["Участники обсуждения"])})', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        
+        pdf.set_font('DejaVu', 'I', 14)
+        pdf.set_text_color(90, 90, 190)
 
-    # Заголовок протокола
-    pdf.cell(200, 10, txt="ПРОТОКОЛ", ln=1, align="C")
-    pdf.cell(200, 10, txt="совещания по теме " + theme, ln=1, align="C")
-    pdf.set_line_width(1)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.line(10, 30, 200, 30)
-    pdf.cell(200, 10, txt="Москва", ln=1, align="C")
-    pdf.cell(170, 10, txt="от " + cur + " №", ln=1, align="R")
-    pdf.set_line_width(0.2)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.line(180, 47, 200, 47)
-    pdf.set_font('DejaVu', "", 12)
-    pdf.cell(200, 10, txt="Присутствовали:", ln=1, align="L")
-
-    # Заполнение списка участников (пустыми строками)
-    for _ in range(count_of_members):
-        pdf.cell(200, 10, txt="", ln=1, align="L")
-
-    pdf.set_line_width(1)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.line(10, 60 + line_height * count_of_members, 200, 60 + line_height * count_of_members)
-
-    k = 1
-
-    logging.info(resume)
-    
-    for item in resume:
-        pdf.set_text_color(0, 0, 0)
-        pdf.cell(200, 10, txt=voc[k] + ".     " + item['Вопрос обсуждения'], ln=1, align="C")
-        pdf.cell(200, 10, txt="(" + ", ".join(item['Участники обсуждения']) + ")", ln=1, align="C")
+        pdf.multi_cell(190, 10, text=f'**Контекст обсуждения:** {question['Контекст обсуждения']}.', align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
+        pdf.multi_cell(190, 10, text=f'**Решение:** {question["Принятое решение"]}.', align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
+        pdf.multi_cell(190, 10, text=f'**Время:** {question['Тайм-код']}', align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
 
         pdf.set_text_color(0, 0, 0)
-        pdf.cell(200, 10, txt=str(1) + ".     " + item['Принятое решение'], ln=1, align="L")
+        pdf.set_font('DejaVu', '', 14)
 
-        pdf.set_text_color(173, 216, 230)
-        context = "Контекст обсуждения: " + item['Контекст обсуждения']
-        left_part, right_part = context.split(":", 1)
-        left_part = left_part + ":"
-        pdf.set_font("DejaVu", "B", 12)
-        pdf.cell(0, 10, left_part, ln=True)
-        pdf.set_font("DejaVu", "", 12)
-        pdf.multi_cell(0, 10, right_part)
-
-        context = "Время: " + item['Время']
-        left_part, right_part = context.split(":", 1)
-        left_part = left_part + ":"
-        pdf.set_font("DejaVu", "B", 12)
-        pdf.cell(0, 10, left_part, ln=True)
-        pdf.set_font("DejaVu", "", 12)
-        pdf.multi_cell(0, 10, right_part)
-
-        k += 1
-
-    # Добавление страницы с перечнем поручений (пример, можно добавить реальные поручения)
     pdf.add_page()
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(170, 10, txt="№", ln=1, align="R")
-    pdf.set_line_width(0.2)
-    pdf.set_draw_color(0, 0, 0)
-    pdf.line(180, 18, 200, 18)
-    pdf.cell(200, 10, txt=f"{date.day} {months[date.month - 1]} {date.year} г.", ln=1, align="R")
-    pdf.set_font('DejaVu', "B", 12)
-    pdf.cell(200, 10, txt="ПЕРЕЧЕНЬ ПОРУЧЕНИЙ", ln=1, align="C")
-    pdf.cell(200, 10, txt="по итогам совещания по теме " + theme, ln=1, align="C")
-    pdf.set_font('DejaVu', "", 12)
 
-    # Пример добавления поручений
-    pdf.multi_cell(200, 10, txt="1. Организация-исполнитель 1 (И. О. Фамилия руководителя)", align="L")
-    pdf.multi_cell(0, line_height)
-    pdf.cell(200, 10, txt="Сделать то-то.", ln=1, align="L")
-    pdf.set_font("DejaVu", "B", 12)
-    pdf.cell(0, 10, "Срок - до 1 сентября 2024", ln=True)
-    pdf.set_font("DejaVu", "", 12)
-    pdf.multi_cell(0, 10, "")
+    year, mon, day, _, _, _, _, _, _ = time.localtime()
 
-    metadata = get_chat_metadata(data['chat_id'])
-    filename = ''.join(data["file_name"].split(".")[:-1])
-    pdf_filepath = f'./temp/{data["chat_id"]}/{filename}.pdf'
-
-    pdf.output(pdf_filepath)
-    if 'password' in metadata:
-        with open(pdf_filepath, 'r+b') as pdf_file:
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            pdf_writer = PyPDF2.PdfWriter()
-            for page in pdf_reader.pages:
-                pdf_writer.add_page(page)
-            pdf_writer.encrypt(user_password=metadata['password'], owner_pwd=metadata['password'])
-            
-            pdf_writer.write(pdf_file)
+    pdf.cell(190, 10, text=f'№______________', align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(190, 10, text=f"{day} {months[mon + 1]} {year} г.", align=Align.R, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     
-    return pdf_filepath
+    pdf.set_font('DejaVu', 'B', 14)
+    pdf.cell(190, 10, text='ПЕРЕЧЕНЬ ПОРУЧЕНИЙ', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.cell(190, 5, text='по итогам совещания', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_y(pdf.get_y() + 8)
+
+    pdf.set_font('DejaVu', '', 14)
+    for i in range(len(assignments)):
+        assignment = assignments[i]
+        pdf.set_x(30)
+        pdf.cell(170, 20, text=f"{i}. {assignment['Имя исполнителя']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_x(36)
+        pdf.cell(170, 10, text=assignment['Описание поручения'], align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_x(36)
+        pdf.cell(170, 10, text=f"**Срок** - {assignment['Срок выполнения']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
+    pdf.set_x(0)
+
+    pdf.output(fp)
+    
+    if password:
+        reader = PdfReader(fp)
+        writer = PdfWriter()
+        writer.append_pages_from_reader(reader)
+        writer.encrypt(password)
+
+        os.remove(fp)
+
+        with open(fp, 'wb') as out_file:
+            writer.write(out_file)

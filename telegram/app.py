@@ -313,6 +313,8 @@ async def get_speakers_names(update: Update, ctx):
         'transcribed_text': get_srt_data(f'{temp_directory}/speakers.srt'),
     }
 
+    await update.message.reply_document(document=json.dumps(request_body['transcribed_text']).encode(), filename='fixed.json')
+
     await channel.default_exchange.publish(Message(json.dumps(request_body).encode()), 'transcribed_text_upload')
 
     return ConversationHandler.END

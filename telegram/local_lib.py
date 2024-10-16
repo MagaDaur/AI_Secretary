@@ -76,23 +76,53 @@ def get_srt_data(srt_filepath, timeout: int = 10000, chunk_size: int = 7000):
 
     text = ''
     chunks = []
-    unfinished = False
-    for subtitle in data:
+    data_size = len(data)
+
+    for i in range(data_size):
+        subtitle = data[i]
         start, end = subtitle['start'] // 1000, subtitle['end'] // 1000
 
-        temp_str = f'{subtitle["speaker"]}\n'
-        temp_str += f'Time: {seconds_to_time(start)} --> {seconds_to_time(end)}\n'
+        temp_str = f'Speaker: {subtitle["speaker"]}\n'
+        temp_str += f'Time: {seconds_to_time(start)} - {seconds_to_time(end)}\n'
         temp_str += f'Text: {subtitle["text"]}\n\n'
 
         if len(text) + len(temp_str) <= chunk_size:
-            unfinished = True
             text += temp_str
         else:
-            unfinished = False
             chunks.append(text)
             text = temp_str
 
-    if unfinished:
-        chunks.append(text)
+        if i == data_size - 1:
+            chunks.append(text)
 
     return chunks
+
+def fix_llm_respond(data):
+    questions = data[0].copy()
+    assignments = data[1].copy()
+
+    for i in range(len(questions)):
+        questions[i] = {k:v for k,v in questions[i].items() if v is not None and len(v) > 0}
+
+    for i in range(len(assignments)):
+        assignments[i] = {k:v for k,v in assignments[i].items() if v is not None and len(v) > 0}
+
+    for question in questions:
+        question['Вопрос обсуждения'] = question.get('Вопрос обсуждения', 'Вопрос не обнаружен').capitalize()
+        question['Принятое решение'] = question.get('Принятое решение', 'Решение не обнаружено').capitalize()
+        question['Контекст обсуждения'] = question.get('Контекст обсуждения', 'Контекст не обнаружен').capitalize()
+
+        if len(question['Участники обсуждения']) == 0:
+            question['Участники обсуждения'] = ['Не определен']
+            continue
+
+        for i in range(len(question['Участники обсуждения'])):
+            question['Участники обсуждения'][i] = question['Участники обсуждения'][i].title()
+
+    for assignment in assignments:
+        assignment['Имя исполнителя'] = assignment.get('Имя исполнителя', 'Адресат поручения не определен')
+        assignment['Описание поручения'] = assignment.get('Описание поручения', 'Описание поручениян не определено').capitalize()
+        assignment['Срок выполнения'] = assignment.get('Срок выполнения', 'Не определен')
+
+    return [question, assignments]
+        

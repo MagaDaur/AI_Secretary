@@ -37,9 +37,9 @@ async def callback(message):
         logging.info("GPT GENERATION")
         data = json.loads(message.body)
         answers = []
+        chunks = data['transcribed_text']
 
         for prompt_components in PROMPTS:
-            chunks = data['transcribed_text']
             chunck_response_list = []
 
             for chunk in chunks:
@@ -69,7 +69,7 @@ async def callback(message):
                     logging.info(response_text)
 
                     try:
-                        json_list = json.loads(response_text)
+                        json_list = json.loads(response_text.replace('```', '').replace('json', ''))
                     except json.decoder.JSONDecodeError as e:
                         logging.info(f"json.decoder.JSONDecodeError: \n{response_text}")
                         json_list = []
@@ -80,13 +80,15 @@ async def callback(message):
 
             answers.append(chunck_response_list)
 
+        logging.info(answers)
+        logging.info("END OF GPT GENERATION")
+
         body = {
             'chat_id': data['chat_id'],
             'file_name': data['file_name'],
             'transcribed_text': answers
         }
-        logging.info(answers)
-        logging.info("END OF GPT GENERATION")
+
         await channel.default_exchange.publish(Message(json.dumps(body).encode()), 'telegram_text_upload')
 
 async def main():
