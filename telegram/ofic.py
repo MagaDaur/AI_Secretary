@@ -78,11 +78,11 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
     for i in range(len(assignments)):
         assignment = assignments[i]
         pdf.set_x(30)
-        pdf.cell(170, 20, text=f"{i}. {assignment['Имя исполнителя']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.multi_cell(170, 20, text=f"{i + 1}. {assignment['Имя исполнителя']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_x(36)
-        pdf.cell(170, 10, text=assignment['Описание поручения'], align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.multi_cell(170, 10, text=assignment['Описание поручения'], align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_x(36)
-        pdf.cell(170, 10, text=f"**Срок** - {assignment['Срок выполнения']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
+        pdf.multi_cell(170, 10, text=f"**Срок** - {assignment['Срок выполнения']}", align=Align.L, new_x=XPos.LMARGIN, new_y=YPos.NEXT, markdown=True)
     pdf.set_x(0)
 
     pdf.output(fp)
