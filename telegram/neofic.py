@@ -1,130 +1,135 @@
-from fpdf import FPDF
-import datetime
-import PyPDF2
-from sqlalchemy.testing.plugin.plugin_base import logging
+from fpdf import FPDF, XPos, YPos, Align
+from pypdf import PdfReader, PdfWriter
+from datetime import datetime
+import roman
+from local_lib import fix_llm_respond
 
-from local_lib import (
-    get_chat_metadata,
-    seconds_to_time,
-)
+months = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+]
 
-from pydub import (
-    AudioSegment
-)
-import logging
+def create_pdf(data: list[list[dict]], fp: str, password: str = None):
+    questions, _ = fix_llm_respond(data)
 
-logging.basicConfig(level=logging.INFO)
+    
+    members = set()
+    duration = questions[-1]['Тайм-код'].split(' - ')[1]
+    date = datetime.today().strftime('%d.%m.%Y')
+    time = datetime.today().strftime('%H:%M:%S')
 
-
-def word(a: str):
-    if a == "speakers":
-        return "Докладчики:"
-    elif a == "date":
-        return "Срок:"
-    elif a == "otv":
-        return "Ответственный:"
-    elif a == "obraz":
-        return "Образ результата:"
-    elif a == "context":
-        return "Контекст обсуждения:"
-    elif a == "time":
-        return "Время:"
-    else:
-        return ""
-
-
-goal = "декларация цели встречи"
-
-months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-          'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
-
-voc = {1: "I", 2: "II", 3: "III", 4: "IV", 5: "V",
-       6: "VI", 7: "VII", 8: "VIII", 9: "IX", 10: "X",
-       11: "XI", 12: "XII", 13: "XIII", 14: "XIV", 15: "XV",
-       16: "XVI", 17: "XVII", 18: "XVIII", 19: "XIX", 20: "XX"}
-
-
-def create_pdf(data):
-    date = datetime.datetime.now()
-    cur = str(date.day) + "." + str(date.month) + "." + str(date.year)
-
-    metadata = get_chat_metadata(data['chat_id'])
-    llm_reply = data['transcribed_text']
-
-    sound: AudioSegment = AudioSegment.from_file(f'./temp/{metadata['chat_id']}/{metadata['audio']['filename']}')
-
-    resume = {}
-    for i in range(len(llm_reply)):
-        for j in range(len(llm_reply[i])):
-            question = llm_reply[i][j]['Вопрос обсуждения']
-            resume[f'{voc[j + 1]}.{question}'] = {
-                'b': {
-                    'speakers': llm_reply[i][j]['Участники обсуждения'],
-                    'decision': llm_reply[i][j]['Принятое решение'],
-                    'context': llm_reply[i][j]['Контекст обсуждения'],
-                    'time': llm_reply[i][j]['Время'],
-                }
-            }
-
-    dur = seconds_to_time(int(sound.duration_seconds))
-    members = ", ".join(metadata['members'])
+    for question in questions:
+        for member in question['Участники обсуждения']:
+            members.add(member)
+    members = list(members)
 
     pdf = FPDF()
+
+    pdf.add_font('DejaVu', '', './fonts/DejaVuSans.ttf')
+    pdf.add_font('DejaVu', 'B', './fonts/DejaVuSans-Bold.ttf')
+    pdf.add_font('DejaVu', 'I', './fonts/DejaVuSans-Oblique.ttf')
+    pdf.add_font('DejaVu', 'BI', './fonts/DejaVuSans-BoldOblique.ttf')
+
     pdf.add_page()
 
-    pdf.add_font("DejaVu", "", "./fonts/DejaVuSans.ttf", uni=True)
-    pdf.add_font("DejaVu", "B", "./fonts/DejaVuSans-Bold.ttf", uni=True)
-    pdf.set_font('DejaVu', "B", 12)
+    pdf.set_font('DejaVu', '', 18)
+    pdf.set_text_color(0, 9, 66)
 
-    line_height = pdf.font_size * 2.5
+    pdf.set_y(30)
+    pdf.set_x(30)
+    pdf.set_char_spacing(2)
+    pdf.cell(h=20, text='ПРОТОКОЛ ВСТРЕЧИ', new_y=YPos.NEXT)
+    pdf.set_char_spacing(0)
 
-    pdf.set_font('DejaVu', "B", 16)
-    pdf.cell(200, 10, txt="ТЕМА ВСТРЕЧИ", ln=1, align="L")
-    pdf.set_font('DejaVu', "", 14)
-    pdf.cell(200, 10, txt="ПРОТОКОЛ ВСТРЕЧИ", ln=1, align="L")
-    pdf.multi_cell(0, line_height)
-    pdf.set_font('DejaVu', "", 12)
-    pdf.cell(200, 10, txt="ДАТА:        " + cur, ln=1, align="L")
-    pdf.cell(200, 10, txt="ВРЕМЯ:        " + str(date.hour) + ":" + str(date.minute), ln=1, align="L")
-    pdf.cell(200, 10, txt="ДЛИТЕЛЬНОСТЬ:        " + dur, ln=1, align="L")
-    pdf.cell(200, 10, txt="УЧАСТНИКИ:        " + members, ln=1, align="L")
-    pdf.multi_cell(0, line_height)
-    pdf.set_font('DejaVu', "", 14)
-    pdf.cell(200, 10, txt="ПОВЕСТКА ДНЯ", ln=1, align="L")
-    pdf.multi_cell(0, line_height)
-    pdf.set_font('DejaVu', "", 12)
-    pdf.cell(200, 10, txt="Цель встречи:" + goal, ln=1, align="L")
-    pdf.multi_cell(0, line_height)
-    for i in resume:
-        pdf.cell(200, 10, txt=i, ln=1, align="L")
-        pdf.multi_cell(0, line_height)
-    pdf.set_font('DejaVu', "", 14)
-    pdf.cell(200, 10, txt="РЕЗЮМЕ ОБСУЖДЕНИЙ", ln=1, align="L")
-    pdf.multi_cell(0, line_height)
-    pdf.set_font('DejaVu', "", 12)
-    for i in resume:
-        pdf.cell(200, 10, txt=i, ln=1, align="L")
-        for j in resume[i]:
-            pdf.cell(200, 10, txt=j + ")", ln=1, align="L")
-            for k in resume[i][j]:
-                if k == "speakers":
-                    pdf.cell(200, 10, txt=word(k) + ', '.join(resume[i][j][k]), ln=1, align="L")
-                else:
-                    logging.info(f"{word(k)} \n {resume[i][j][k]}")
-                    pdf.multi_cell(200, 10, txt=word(k) + (resume[i][j][k] or " "), align="L")
+    pdf.set_text_color(0)
 
-    filename = ''.join(data["file_name"].split(".")[:-1])
-    pdf_filepath = f'./temp/{data["chat_id"]}/{filename}.pdf'
+    pdf.set_font(style='B', size=10)
+    pdf.set_x(30)
+    pdf.cell(50, 10, text='ДАТА:')
+    pdf.set_font(style='')
+    pdf.cell(h=10, text=date, new_y=YPos.NEXT)
 
-    pdf.output(pdf_filepath)
-    if 'password' in metadata:
-        with open(pdf_filepath, 'r+b') as pdf_file:
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            pdf_writer = PyPDF2.PdfWriter()
-            for page in pdf_reader.pages:
-                pdf_writer.add_page(page)
-            pdf_writer.encrypt(user_password=metadata['password'], owner_pwd=metadata['password'])
+    pdf.set_font(style='B')
+    pdf.set_x(30)
+    pdf.cell(50, 10, text='ВРЕМЯ:')
+    pdf.set_font(style='')
+    pdf.cell(h=10, text=time, new_y=YPos.NEXT)
 
-            pdf_writer.write(pdf_file)
+    pdf.set_font(style='B')
+    pdf.set_x(30)
+    pdf.cell(50, 10, text='ДЛИТЕЛЬНОСТЬ:')
+    pdf.set_font(style='')
+    pdf.cell(h=10, text=duration, new_y=YPos.NEXT)
 
-    return pdf_filepath
+    pdf.set_font(style='B')
+    pdf.set_x(30)
+    pdf.cell(50, 10, text='УЧАСТНИКИ:')
+    pdf.set_font(style='')
+    pdf.multi_cell(110, 10, text=', '.join(members), new_y=YPos.NEXT)
+    
+    pdf.set_font(style='', size=16)
+    pdf.set_text_color(0, 9, 66)
+
+    pdf.set_x(30)
+    pdf.set_char_spacing(2)
+    pdf.cell(h=20, text='ПОВЕСТКА ДНЯ', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_char_spacing(0)
+
+    pdf.set_text_color(0)
+
+    for i in range(len(questions)):
+        question = questions[i]
+
+        pdf.set_font(style='B', size=10)
+        pdf.set_x(30)
+        pdf.cell(20, 10, text=roman.toRoman(i + 1) + '.')
+
+        pdf.set_font(style='')
+        pdf.multi_cell(190, 10, text=question['Вопрос обсуждения'], new_y=YPos.NEXT)
+
+    pdf.set_font('DejaVu', '', 16)
+    pdf.set_text_color(0, 9, 66)
+
+    pdf.set_x(30)
+    pdf.set_char_spacing(2)
+    pdf.cell(h=25, text='РЕЗЮМЕ ОБСУЖДЕНИЙ', new_y=YPos.NEXT)
+    pdf.set_char_spacing(0)
+
+    pdf.set_text_color(0)
+
+    for i in range(len(questions)):
+        question = questions[i]
+        
+        pdf.set_font(style='B', size=10)
+        pdf.set_x(30)
+        pdf.multi_cell(150, text=f'{roman.toRoman(i + 1)}.  {question['Вопрос обсуждения']}:', new_y=YPos.NEXT, max_line_height=7, padding=(3, 0))
+
+        pdf.set_font(style='')
+        pdf.set_x(40)
+        pdf.multi_cell(150, 5, text=f'**Докладчики:** {', '.join(question['Участники обсуждения'])}', new_y=YPos.NEXT, markdown=True)
+
+        pdf.set_x(40)
+        pdf.multi_cell(150, 5, text=question['Принятое решение'] + '.', new_y=YPos.NEXT)
+
+        pdf.set_font(style='I')
+        pdf.set_x(40)
+        pdf.set_text_color(0, 112, 193)
+        pdf.multi_cell(150, text=f'**Контекст обсуждения:** {question['Контекст обсуждения']}', markdown=True, new_y=YPos.NEXT, padding=(3, 0))
+
+        pdf.set_x(40)
+        pdf.cell(text=f'**Время:** {question['Тайм-код']}', markdown=True, new_y=YPos.NEXT)
+
+        pdf.set_text_color(0)
+
+    pdf.output(fp)
+
+    if password:
+        reader = PdfReader(fp)
+        writer = PdfWriter()
+        writer.append_pages_from_reader(reader)
+        writer.encrypt(password)
+
+        with open(fp, 'wb') as out_file:
+            writer.write(out_file)
+
+    

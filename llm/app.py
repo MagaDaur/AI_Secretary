@@ -47,7 +47,7 @@ async def callback(message):
                     "modelUri": "gpt://b1glrfrec5q420bjhi7n/yandexgpt/latest",
                     "completionOptions": {
                         "stream": False,
-                        "temperature": 0.1,
+                        "temperature": 0.25,
                         "maxTokens": 20000
                     },
                     "messages": [
@@ -77,6 +77,8 @@ async def callback(message):
                 else:
                     logging.info(response.status_code)
                     logging.info(response.json())
+
+                time.sleep(0.1)
 
             answers.append(chunck_response_list)
 

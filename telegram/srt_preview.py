@@ -1,8 +1,5 @@
 from fpdf import FPDF
 import subtitle_parser
-import re
-import os
-import pathlib
 
 def create_pdf(file_path: str):
     pdf=FPDF()

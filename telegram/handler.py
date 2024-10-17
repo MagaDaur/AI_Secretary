@@ -16,11 +16,9 @@ import os
 import asyncio
 import base64
 
-import srt_preview
+# import srt_preview
 import neofic
-import neofic_word
 import ofic
-import db
 
 from shutil import (
     rmtree as RemoveDirectory
@@ -65,7 +63,12 @@ async def llm_callback(message):
         ofic_path = f'./temp/{data["chat_id"]}/ofic.pdf'
         ofic.create_pdf(llm_response, ofic_path, metadata.get('password'))
         with open(ofic_path, 'rb') as ofic_pdf:
-            await bot.send_document(data['chat_id'], ofic_pdf, caption='Офицальный PDF Отчет', filename='Протокол.pdf')
+            await bot.send_document(data['chat_id'], ofic_pdf, caption='Официальный PDF Отчет', filename='Протокол.pdf')
+
+        neofic_path = f'./temp/{data["chat_id"]}/neofic.pdf'
+        neofic.create_pdf(llm_response, neofic_path, metadata.get('password'))
+        with open(neofic_path, 'rb') as neofic_pdf:
+            await bot.send_document(data['chat_id'], neofic_pdf, caption='Неофициальный PDF Отчет', filename='Протокол.pdf')
 
         await bot.send_message(data['chat_id'], 'Спасибо что воспльзовались нашим ботом!', reply_markup=ReplyKeyboardMarkup([['Start']], resize_keyboard=True, one_time_keyboard=True))
 
