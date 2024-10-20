@@ -2,13 +2,7 @@ from fpdf import FPDF, XPos, YPos, Align
 from datetime import datetime
 import time
 from pypdf import PdfReader, PdfWriter
-
-roman_digits = {
-    1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V',
-    6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X',
-    11: 'XI', 12: 'XII', 13: 'XIII', 14: 'XIV', 15: 'XV',
-    16: 'XVI', 17: 'XVII', 18: 'XVIII', 19: 'XIX', 20: 'XX'
-}
+import roman
 
 months = [
     'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -48,7 +42,7 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
     for i in range(len(questions)):
         question = questions[i]
 
-        pdf.cell(190, 10, text=f'{roman_digits[i + 1]}.    {question['Вопрос обсуждения']}.', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.cell(190, 10, text=f'{roman.toRoman(i + 1)}.    {question['Вопрос обсуждения']}.', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.multi_cell(190, 10, text=f'({', '.join(question["Участники обсуждения"])})', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         pdf.set_font('DejaVu', 'I', 14)

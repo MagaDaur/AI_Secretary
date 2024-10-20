@@ -2,7 +2,6 @@ from fpdf import FPDF, XPos, YPos, Align
 from pypdf import PdfReader, PdfWriter
 from datetime import datetime
 import roman
-from local_lib import fix_llm_respond
 
 months = [
     'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
@@ -10,9 +9,7 @@ months = [
 ]
 
 def create_pdf(data: list[list[dict]], fp: str, password: str = None):
-    questions, _ = fix_llm_respond(data)
-
-    
+    questions = data[0]
     members = set()
     duration = questions[-1]['Тайм-код'].split(' - ')[1]
     date = datetime.today().strftime('%d.%m.%Y')
