@@ -51,7 +51,7 @@ def seconds_to_time(total_seconds):
 
     return f"{hours:02}:{minutes:02}:{seconds:02}"
 
-def get_srt_data(srt_filepath, timeout: int = 60000, chunk_size: int = 7500):
+def get_srt_data(srt_filepath, timeout: int = 60000, chunk_size: int = 30000):
     with open(srt_filepath, 'r', encoding='utf-8') as srt_file:
         srt = subtitle_parser.SrtParser(srt_file)
         srt.parse()

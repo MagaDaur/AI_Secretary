@@ -44,11 +44,11 @@ async def callback(message):
 
             for chunk in chunks:
                 request_data = {
-                    "modelUri": "gpt://b1glrfrec5q420bjhi7n/yandexgpt/latest",
+                    "modelUri": "gpt://b1glrfrec5q420bjhi7n/yandexgpt-32k/rc",
                     "completionOptions": {
                         "stream": False,
-                        "temperature": 0.25,
-                        "maxTokens": 20000
+                        "temperature": 0.2,
+                        "maxTokens": "32000"
                     },
                     "messages": [
                         {
