@@ -42,7 +42,7 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
     for i in range(len(questions)):
         question = questions[i]
 
-        pdf.cell(190, 10, text=f'{roman.toRoman(i + 1)}.    {question['Вопрос обсуждения']}.', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.multi_cell(190, 10, text=f'{roman.toRoman(i + 1)}.    {question['Вопрос обсуждения']}.', align=Align.C, border='B', new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.multi_cell(190, 10, text=f'({', '.join(question["Участники обсуждения"])})', align=Align.C, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         
         pdf.set_font('DejaVu', 'I', 14)

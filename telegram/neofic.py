@@ -82,7 +82,7 @@ def create_pdf(data: list[list[dict]], fp: str, password: str = None):
         pdf.cell(20, 10, text=roman.toRoman(i + 1) + '.')
 
         pdf.set_font(style='')
-        pdf.multi_cell(190, 10, text=question['Вопрос обсуждения'], new_y=YPos.NEXT)
+        pdf.multi_cell(150, 10, text=question['Вопрос обсуждения'], new_y=YPos.NEXT)
 
     pdf.set_font('DejaVu', '', 16)
     pdf.set_text_color(0, 9, 66)
